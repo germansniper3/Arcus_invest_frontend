@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
-  CheckCircle2, LogOut, RefreshCcw, UserPlus, FileText, Calendar,
-  Users, MessageSquare, Send, CheckSquare, Plus, Edit2, Trash2,
+  LogOut, RefreshCcw, UserPlus, FileText, Calendar,
+  Send, CheckSquare, Plus, Edit2, Trash2,
   Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
   UploadCloud, Download
 } from 'lucide-react';

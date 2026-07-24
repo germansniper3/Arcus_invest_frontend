@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { LogOut, Rocket, CheckSquare, Square, MessageSquare, Send, Calendar, User, Clock, FileText, CalendarClock, Plus, X, UploadCloud, Download } from 'lucide-react';
+import { LogOut, Rocket, CheckSquare, Square, MessageSquare, Send, Clock, FileText, CalendarClock, Plus, X, UploadCloud, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';

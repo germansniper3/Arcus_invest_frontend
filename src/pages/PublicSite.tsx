@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, CircuitBoard, Hammer, Cpu, ShieldCheck, Calendar, MapPin, Wrench, Layers } from 'lucide-react';
+import { ArrowRight, Hammer, Cpu, Calendar, MapPin, Layers } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ChatWidget } from '../components/ChatWidget';
 import { Nav } from '../components/Nav';

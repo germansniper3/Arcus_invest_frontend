@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { KeyRound, ShieldCheck, FileText, ArrowRight, Loader } from 'lucide-react';
+import { ShieldCheck, FileText, ArrowRight, Loader } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
 import { Nav } from '../components/Nav';

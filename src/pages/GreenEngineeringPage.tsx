@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Calendar, MapPin, Users, ArrowLeft, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
