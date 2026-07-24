@@ -117,7 +117,7 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 .rail { background: #0d120f; color: #fff; padding: 28px 20px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 0; height: 100svh; }
 .rail span { color: var(--muted); }
 .rail button { background: rgba(255,255,255,0.08); color: #fff; padding: 0 12px; justify-content: flex-start; }
-.work-main { padding: 36px; }
+.work-main { padding: 36px; min-height: 100vh; }
 .workspace-head { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 26px; }
 .workspace h1 { font-size: clamp(34px, 5vw, 58px); color: #111512; }
 .workspace p { color: #5a625d; }
@@ -158,8 +158,15 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
   h1 { font-size: 58px; }
   .section-head, .feature-row, .workshops, .quote-section, .hub-hero, .enroll-layout, .auth-screen, .workspace, .student-grid { grid-template-columns: 1fr; }
   .service-grid, .hub-flow, .metric-row { grid-template-columns: 1fr 1fr; }
-  .rail { position: static; height: auto; }
-  .row { grid-template-columns: 1fr; }
+  /* Sidebar becomes a compact, horizontally-wrapping top bar instead of a tall column */
+  .rail { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding: 16px; }
+  .rail > div { flex-direction: row !important; flex-wrap: wrap; width: 100%; }
+  .rail > div button { flex: 1 1 auto; }
+  /* !important beats the inline grid-template-columns set on these rows so they
+     actually stack on mobile instead of crushing the dropdowns to one character */
+  .student-grid { grid-template-columns: 1fr !important; }
+  .row { grid-template-columns: 1fr !important; }
+  .row select, .row .primary, .row button { width: 100%; }
 }
 
 @media (max-width: 620px) {
@@ -169,5 +176,7 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
   h1 { font-size: 44px; }
   h2 { font-size: 34px; }
   .service-grid, .hub-flow, .form-grid, .metric-row { grid-template-columns: 1fr; }
-  .work-main { padding: 22px; }
+  .work-main { padding: 22px 16px; }
+  /* Catch every inline multi-column grid inside the dashboards and stack it */
+  .work-main [style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
 }

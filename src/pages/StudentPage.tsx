@@ -229,7 +229,7 @@ export function StudentPage() {
         <button onClick={logout} style={{ marginTop: 'auto' }}><LogOut size={17} /> Logout</button>
       </aside>
       
-      <section className="work-main" style={{ overflowY: 'auto', height: '100vh' }}>
+      <section className="work-main">
         <div className="workspace-head">
           <div>
             <p className="eyebrow">Student Portal Dashboard</p>

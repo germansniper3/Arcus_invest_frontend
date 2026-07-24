@@ -475,7 +475,7 @@ export function AdminPage() {
         </div>
       </aside>
 
-      <section className="work-main" style={{ overflowY: 'auto', height: '100vh', padding: '36px' }}>
+      <section className="work-main">
         <div className="workspace-head">
           <div>
             <p className="eyebrow" style={{ textTransform: 'uppercase' }}>Management Area</p>
