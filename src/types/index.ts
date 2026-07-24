@@ -97,7 +97,7 @@ export interface CapstoneMilestone {
   student_profile_id: string;
   title: string;
   description: string;
-  status: 'pending' | 'in_progress' | 'completed';
+  status: 'pending' | 'in_progress' | 'pending_review' | 'completed';
   feedback: string;
   completed_at?: string | null;
 }
@@ -109,6 +109,45 @@ export interface CapstoneComment {
   author_name: string;
   author_role: string;
   message: string;
+}
+
+export interface ProgressReport {
+  id: string;
+  created_at: string;
+  student_profile_id: string;
+  period_start: string;
+  period_end: string;
+  accomplishments: string;
+  challenges: string;
+  status: 'submitted' | 'reviewed';
+  supervisor_feedback: string;
+  reviewed_at?: string | null;
+}
+
+export interface ExtensionRequest {
+  id: string;
+  created_at: string;
+  student_profile_id: string;
+  extension_type: string;
+  requested_deadline: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'denied';
+  decision_note: string;
+  decided_at?: string | null;
+}
+
+export interface Submission {
+  id: string;
+  created_at: string;
+  student_profile_id: string;
+  title: string;
+  kind: string;
+  file_name: string;
+  content_type: string;
+  size: number;
+  status: 'submitted' | 'accepted' | 'revise';
+  review_note: string;
+  reviewed_at?: string | null;
 }
 
 export interface Product {

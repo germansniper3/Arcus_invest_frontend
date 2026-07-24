@@ -8,10 +8,11 @@ import { QuoteForm } from '../components/QuoteForm';
 import { SmartImage } from '../components/SmartImage';
 import { api } from '../lib/api';
 import { arcusImages } from '../lib/assets';
+import type { Event, Product } from '../types';
 
 export function PublicSite() {
-  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [selectedService, setSelectedService] = useState<string>('');
   const [workshopSlide, setWorkshopSlide] = useState(1); // Slide 1: Electronics, Slide 2: Mechanical
 
@@ -99,32 +100,9 @@ export function PublicSite() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '56px' }}>
-            {/* Chofa Card */}
-            <div style={{ background: '#121714', border: '1px solid var(--line)', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ height: '240px', overflow: 'hidden' }}>
-                <img src={arcusImages.ebike} alt="Chofa E-Bike" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              </div>
-              <div style={{ padding: '32px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <h3 style={{ color: '#fff', fontSize: '24px', marginBottom: '12px' }}>CHOFA E-BIKE</h3>
-                  <p style={{ fontSize: '14px', lineHeight: '1.7', marginBottom: '24px' }}>
-                    The Chofa E-Bike is a powerful, efficient electric bicycle designed for everyday commuting, delivery services, and urban mobility. Built to handle African roads and rising fuel costs, Chofa combines performance, durability, and smart technology in one sleek ride.
-                  </p>
-                </div>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <a href="#quote" onClick={() => setSelectedService('Product: Chofa E-Bike Standard')} className="primary" style={{ fontSize: '13px', minHeight: '38px', padding: '0 16px' }}>
-                    Get A Quote
-                  </a>
-                  <a href="#quote" onClick={() => setSelectedService('Product: Chofa E-Bike Standard')} className="secondary" style={{ fontSize: '13px', minHeight: '38px', padding: '0 16px' }}>
-                    Learn More
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {/* Custom PCB Card */}
-            <div style={{ background: '#121714', border: '1px solid var(--line)', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '32px', marginBottom: '56px' }}>
+            {/* Custom PCB Card (service, not a database-backed product) */}
+            <div style={{ background: '#121714', border: '1px solid var(--line)', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxWidth: '620px' }}>
               <div style={{ height: '240px', overflow: 'hidden' }}>
                 <img src={arcusImages.pcbService} alt="Custom PCB design" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
@@ -144,15 +122,19 @@ export function PublicSite() {
             </div>
           </div>
 
-          {/* DYNAMIC PRODUCTS FROM DATABASE */}
-          {products.length > 0 && (
-            <div style={{ borderTop: '1px solid var(--line)', paddingTop: '48px' }}>
-              <h3 style={{ color: '#fff', marginBottom: '24px', fontSize: '20px' }}>Available Inventory & Models</h3>
+          {/* DYNAMIC PRODUCTS FROM DATABASE — the only source of product listings on this page */}
+          <div style={{ borderTop: '1px solid var(--line)', paddingTop: '48px' }}>
+            <h3 style={{ color: '#fff', marginBottom: '24px', fontSize: '20px' }}>Available Inventory & Models</h3>
+            {products.length > 0 ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
                 {products.map((p) => (
                   <div key={p.id} style={{ background: '#101410', border: '1px solid var(--line)', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                     <div style={{ height: '200px', background: '#121712', overflow: 'hidden', position: 'relative' }}>
-                      <img src={p.image_url || arcusImages.ebike} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <div className="image-fallback" style={{ width: '100%', height: '100%', minHeight: 0 }} role="img" aria-label={p.name} />
+                      )}
                       <div style={{ position: 'absolute', top: '12px', right: '12px', background: p.stock > 0 ? '#e8f2dc' : '#ffe2e2', color: p.stock > 0 ? '#35520f' : '#a00', fontSize: '11px', fontWeight: 'bold', padding: '4px 10px', borderRadius: '20px' }}>
                         {p.stock > 0 ? `In Stock (${p.stock})` : 'Out of Stock / Custom Order'}
                       </div>
@@ -174,10 +156,10 @@ export function PublicSite() {
                             {p.price > 0 ? `${p.price.toLocaleString()} ZMW` : 'Quote Only'}
                           </strong>
                         </div>
-                        <a 
-                          href="#quote" 
+                        <a
+                          href="#quote"
                           onClick={() => setSelectedService(`Product: ${p.name}`)}
-                          className="primary" 
+                          className="primary"
                           style={{ padding: '8px 16px', fontSize: '12px', minHeight: '36px' }}
                         >
                           Inquire Now <ArrowRight size={14} />
@@ -187,8 +169,12 @@ export function PublicSite() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <div style={{ border: '1px dashed var(--line)', borderRadius: '12px', padding: '40px', textAlign: 'center', color: '#b8b7ad' }}>
+                Product catalogue coming soon — request a quote for custom builds.
+              </div>
+            )}
+          </div>
         </section>
 
         {/* WORKSHOPS AND FACILITIES SECTION */}
@@ -361,7 +347,7 @@ export function PublicSite() {
       </main>
 
       <footer className="footer" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-        <span>© 2025 Arcus Investments. All rights reserved</span>
+        <span>© {new Date().getFullYear()} Arcus Investments. All rights reserved</span>
         <span style={{ fontSize: '12px', color: '#5a625d' }}>Kitwe Innovation Hub · Kitwe, Zambia</span>
       </footer>
       <ChatWidget />

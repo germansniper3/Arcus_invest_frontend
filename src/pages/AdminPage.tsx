@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import { 
-  CheckCircle2, LogOut, RefreshCcw, UserPlus, FileText, Calendar, 
-  Users, MessageSquare, Send, CheckSquare, Plus, Edit2, Trash2, 
-  Mail, X, Clock, Settings, GraduationCap
+import {
+  CheckCircle2, LogOut, RefreshCcw, UserPlus, FileText, Calendar,
+  Users, MessageSquare, Send, CheckSquare, Plus, Edit2, Trash2,
+  Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
+  UploadCloud, Download
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api } from '../lib/api';
+import { api, formatFileSize } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission } from '../types';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products';
 
@@ -29,11 +30,24 @@ export function AdminPage() {
   // Students Hub State
   const [students, setStudents] = useState<User[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
-  const [studentDetails, setStudentDetails] = useState<{ profile: any; milestones: any[]; comments: any[] } | null>(null);
+  const [studentDetails, setStudentDetails] = useState<{ profile: any; milestones: any[]; comments: any[]; progress_reports: ProgressReport[]; extensions: ExtensionRequest[]; submissions: Submission[] } | null>(null);
   const [newFeedbackComment, setNewFeedbackComment] = useState('');
   const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
   const [milestoneFeedback, setMilestoneFeedback] = useState('');
   const [milestoneStatus, setMilestoneStatus] = useState('');
+
+  // Progress report response state
+  const [editingReportId, setEditingReportId] = useState<string | null>(null);
+  const [reportFeedbackDraft, setReportFeedbackDraft] = useState('');
+
+  // Extension response state
+  const [editingExtensionId, setEditingExtensionId] = useState<string | null>(null);
+  const [extensionNoteDraft, setExtensionNoteDraft] = useState('');
+
+  // Submission review state
+  const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null);
+  const [submissionNoteDraft, setSubmissionNoteDraft] = useState('');
+  const [downloadingSubmissionId, setDownloadingSubmissionId] = useState<string | null>(null);
 
   // Events State
   const [events, setEvents] = useState<Event[]>([]);
@@ -148,7 +162,12 @@ export function AdminPage() {
     setStudentDetails(null);
     try {
       const details = await api.getStudent(student.id);
-      setStudentDetails(details);
+      setStudentDetails({
+        ...details,
+        progress_reports: details.progress_reports || [],
+        extensions: details.extensions || [],
+        submissions: details.submissions || []
+      });
     } catch (err: any) {
       toast.error(err.message || 'Failed to load student workspace details');
     }
@@ -197,6 +216,83 @@ export function AdminPage() {
       setStudents(nextStudents);
     } catch (err: any) {
       toast.error(err.message || 'Failed to save milestone update');
+    }
+  }
+
+  function triggerReportFeedbackEdit(r: ProgressReport) {
+    setEditingReportId(r.id);
+    setReportFeedbackDraft(r.supervisor_feedback || '');
+  }
+
+  async function markReportReviewed(reportId: string) {
+    try {
+      const updated = await api.adminRespondProgressReport(reportId, {
+        supervisor_feedback: reportFeedbackDraft,
+        status: 'reviewed'
+      });
+      setStudentDetails((prev) => prev ? {
+        ...prev,
+        progress_reports: prev.progress_reports.map((r) => r.id === reportId ? updated : r)
+      } : null);
+      setEditingReportId(null);
+      toast.success('Progress report marked reviewed');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update progress report');
+    }
+  }
+
+  function triggerExtensionDecision(ext: ExtensionRequest) {
+    setEditingExtensionId(ext.id);
+    setExtensionNoteDraft(ext.decision_note || '');
+  }
+
+  async function decideExtension(extensionId: string, status: 'approved' | 'denied') {
+    try {
+      const updated = await api.adminRespondExtension(extensionId, {
+        status,
+        decision_note: extensionNoteDraft
+      });
+      setStudentDetails((prev) => prev ? {
+        ...prev,
+        extensions: prev.extensions.map((e) => e.id === extensionId ? updated : e)
+      } : null);
+      setEditingExtensionId(null);
+      toast.success(`Extension request ${status}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update extension request');
+    }
+  }
+
+  function triggerSubmissionReview(s: Submission) {
+    setEditingSubmissionId(s.id);
+    setSubmissionNoteDraft(s.review_note || '');
+  }
+
+  async function reviewSubmission(submissionId: string, status: 'accepted' | 'revise') {
+    try {
+      const updated = await api.adminReviewSubmission(submissionId, {
+        status,
+        review_note: submissionNoteDraft
+      });
+      setStudentDetails((prev) => prev ? {
+        ...prev,
+        submissions: prev.submissions.map((s) => s.id === submissionId ? updated : s)
+      } : null);
+      setEditingSubmissionId(null);
+      toast.success(`Submission ${status === 'accepted' ? 'accepted' : 'sent back for revision'}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update submission');
+    }
+  }
+
+  async function downloadAdminSubmission(s: Submission) {
+    setDownloadingSubmissionId(s.id);
+    try {
+      await api.downloadSubmission(s.id, 'admin', s.file_name);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to download file');
+    } finally {
+      setDownloadingSubmissionId(null);
     }
   }
 
@@ -276,7 +372,11 @@ export function AdminPage() {
     if (!selectedEvent) return;
     try {
       const res = await api.adminBroadcast(selectedEvent.id, broadcastForm.subject, broadcastForm.message);
-      toast.success(`Broadcast message dispatched to ${res.recipients} attendee(s)!`);
+      if (res.status === 'sent') {
+        toast.success(`Broadcast emailed to ${res.recipients} confirmed attendee(s).`);
+      } else {
+        toast.warning(res.message || 'Broadcast stored, but no email was sent.');
+      }
       setShowBroadcastModal(false);
       setBroadcastForm({ subject: '', message: '' });
     } catch (err: any) {
@@ -704,7 +804,8 @@ export function AdminPage() {
                                 >
                                   <option value="pending">Pending</option>
                                   <option value="in_progress">In Progress</option>
-                                  <option value="completed">Completed</option>
+                                  <option value="pending_review">Pending Review</option>
+                                  <option value="completed">Completed (sign-off)</option>
                                 </select>
                               </div>
                               <input 
@@ -775,6 +876,195 @@ export function AdminPage() {
                         <Send size={16} />
                       </button>
                     </form>
+                  </article>
+
+                  {/* Progress Reports */}
+                  <article className="panel" style={{ padding: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                      <FileText size={18} style={{ color: 'var(--accent)' }} />
+                      <h3 style={{ margin: 0, fontSize: '18px' }}>Progress Reports</h3>
+                    </div>
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      {studentDetails.progress_reports.length === 0 ? (
+                        <p style={{ fontSize: '12px', color: '#5a625d', textAlign: 'center', padding: '12px' }}>No progress reports submitted yet.</p>
+                      ) : (
+                        studentDetails.progress_reports.map((r) => (
+                          <div key={r.id} style={{ padding: '12px', background: '#f7f8f3', border: '1px solid #d8dbd1', borderRadius: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                              <strong style={{ color: '#111512', fontSize: '13px' }}>
+                                {new Date(r.period_start).toLocaleDateString()} &ndash; {new Date(r.period_end).toLocaleDateString()}
+                              </strong>
+                              <span style={{
+                                fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold',
+                                background: r.status === 'reviewed' ? '#e8f2dc' : '#fff3e0',
+                                color: r.status === 'reviewed' ? '#35520f' : '#c98745'
+                              }}>{r.status.toUpperCase()}</span>
+                            </div>
+                            <ul style={{ margin: '0 0 8px', paddingLeft: '16px', fontSize: '12px', color: '#2d3330' }}>
+                              {r.accomplishments.split('\n').filter(Boolean).map((line, i) => (
+                                <li key={i}>{line}</li>
+                              ))}
+                            </ul>
+                            {r.challenges && (
+                              <p style={{ fontSize: '11px', color: '#5a625d', margin: '0 0 8px', whiteSpace: 'pre-line' }}><strong>Challenges:</strong> {r.challenges}</p>
+                            )}
+                            {editingReportId === r.id ? (
+                              <div style={{ display: 'grid', gap: '8px' }}>
+                                <textarea
+                                  placeholder="Add feedback for the student..."
+                                  value={reportFeedbackDraft}
+                                  onChange={(e) => setReportFeedbackDraft(e.target.value)}
+                                  style={{ color: '#111512', background: '#fff', border: '1px solid #d8dbd1', minHeight: '60px', fontSize: '12px' }}
+                                />
+                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                  <button onClick={() => setEditingReportId(null)} style={{ background: '#eef0ea', color: '#111512', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Cancel</button>
+                                  <button onClick={() => markReportReviewed(r.id)} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Mark reviewed</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {r.supervisor_feedback && (
+                                  <div style={{ fontSize: '11px', color: '#c98745', background: '#fff', borderLeft: '2px solid var(--copper)', padding: '4px 8px', marginBottom: '8px', borderRadius: '0 4px 4px 0' }}>
+                                    <strong>Feedback:</strong> {r.supervisor_feedback}
+                                  </div>
+                                )}
+                                <button onClick={() => triggerReportFeedbackEdit(r)} style={{ background: '#eef0ea', color: '#111512', minHeight: '28px', fontSize: '11px', padding: '0 10px', borderRadius: '4px', border: 0, cursor: 'pointer' }}>
+                                  <Edit2 size={11} /> {r.status === 'reviewed' ? 'Edit feedback' : 'Respond'}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </article>
+
+                  {/* Extension Requests */}
+                  <article className="panel" style={{ padding: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                      <CalendarClock size={18} style={{ color: 'var(--accent)' }} />
+                      <h3 style={{ margin: 0, fontSize: '18px' }}>Extension Requests</h3>
+                    </div>
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      {studentDetails.extensions.length === 0 ? (
+                        <p style={{ fontSize: '12px', color: '#5a625d', textAlign: 'center', padding: '12px' }}>No extension requests submitted yet.</p>
+                      ) : (
+                        studentDetails.extensions.map((ext) => (
+                          <div key={ext.id} style={{ padding: '12px', background: '#f7f8f3', border: '1px solid #d8dbd1', borderRadius: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                              <strong style={{ color: '#111512', fontSize: '13px', textTransform: 'capitalize' }}>{ext.extension_type.replace(/_/g, ' ')}</strong>
+                              <span style={{
+                                fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold',
+                                background: ext.status === 'approved' ? '#e8f2dc' : ext.status === 'denied' ? '#ffe2e2' : '#fff3e0',
+                                color: ext.status === 'approved' ? '#35520f' : ext.status === 'denied' ? '#a00' : '#c98745'
+                              }}>{ext.status.toUpperCase()}</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#5a625d', marginBottom: '6px' }}>
+                              Requested new deadline: <strong>{new Date(ext.requested_deadline).toLocaleDateString()}</strong>
+                            </div>
+                            <p style={{ fontSize: '12px', color: '#2d3330', margin: '0 0 8px', whiteSpace: 'pre-line' }}>{ext.reason}</p>
+                            {editingExtensionId === ext.id ? (
+                              <div style={{ display: 'grid', gap: '8px' }}>
+                                <input
+                                  placeholder="Decision note (optional)..."
+                                  value={extensionNoteDraft}
+                                  onChange={(e) => setExtensionNoteDraft(e.target.value)}
+                                  style={{ color: '#111512', background: '#fff', border: '1px solid #d8dbd1', fontSize: '12px', padding: '8px' }}
+                                />
+                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                  <button onClick={() => setEditingExtensionId(null)} style={{ background: '#eef0ea', color: '#111512', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Cancel</button>
+                                  <button onClick={() => decideExtension(ext.id, 'denied')} style={{ background: '#ffe2e2', color: '#a00', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <ThumbsDown size={12} /> Deny
+                                  </button>
+                                  <button onClick={() => decideExtension(ext.id, 'approved')} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <ThumbsUp size={12} /> Approve
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {ext.decision_note && (
+                                  <div style={{ fontSize: '11px', color: '#c98745', background: '#fff', borderLeft: '2px solid var(--copper)', padding: '4px 8px', marginBottom: '8px', borderRadius: '0 4px 4px 0' }}>
+                                    <strong>Decision Note:</strong> {ext.decision_note}
+                                  </div>
+                                )}
+                                <button onClick={() => triggerExtensionDecision(ext)} style={{ background: '#eef0ea', color: '#111512', minHeight: '28px', fontSize: '11px', padding: '0 10px', borderRadius: '4px', border: 0, cursor: 'pointer' }}>
+                                  <Edit2 size={11} /> {ext.status === 'pending' ? 'Decide' : 'Change decision'}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </article>
+
+                  {/* Submissions review */}
+                  <article className="panel" style={{ padding: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                      <UploadCloud size={18} style={{ color: 'var(--accent)' }} />
+                      <h3 style={{ margin: 0, fontSize: '18px' }}>Submissions</h3>
+                    </div>
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      {studentDetails.submissions.length === 0 ? (
+                        <p style={{ fontSize: '12px', color: '#5a625d', textAlign: 'center', padding: '12px' }}>No submissions yet.</p>
+                      ) : (
+                        studentDetails.submissions.map((s) => (
+                          <div key={s.id} style={{ padding: '12px', background: '#f7f8f3', border: '1px solid #d8dbd1', borderRadius: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                              <strong style={{ color: '#111512', fontSize: '13px' }}>{s.title}</strong>
+                              <span style={{
+                                fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold',
+                                background: s.status === 'accepted' ? '#e8f2dc' : s.status === 'revise' ? '#fff3e0' : '#f0f0f0',
+                                color: s.status === 'accepted' ? '#35520f' : s.status === 'revise' ? '#c98745' : '#555'
+                              }}>{s.status.toUpperCase()}</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#5a625d', marginBottom: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              <span style={{ textTransform: 'capitalize' }}>{s.kind}</span>
+                              <span>{s.file_name}</span>
+                              <span>{formatFileSize(s.size)}</span>
+                            </div>
+                            <button
+                              onClick={() => downloadAdminSubmission(s)}
+                              disabled={downloadingSubmissionId === s.id}
+                              style={{ background: '#eef0ea', color: '#111512', minHeight: '28px', fontSize: '11px', padding: '0 10px', borderRadius: '4px', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}
+                            >
+                              <Download size={11} /> {downloadingSubmissionId === s.id ? 'Downloading...' : 'Download'}
+                            </button>
+                            {editingSubmissionId === s.id ? (
+                              <div style={{ display: 'grid', gap: '8px' }}>
+                                <input
+                                  placeholder="Review note (optional)..."
+                                  value={submissionNoteDraft}
+                                  onChange={(e) => setSubmissionNoteDraft(e.target.value)}
+                                  style={{ color: '#111512', background: '#fff', border: '1px solid #d8dbd1', fontSize: '12px', padding: '8px' }}
+                                />
+                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                  <button onClick={() => setEditingSubmissionId(null)} style={{ background: '#eef0ea', color: '#111512', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Cancel</button>
+                                  <button onClick={() => reviewSubmission(s.id, 'revise')} style={{ background: '#ffe2e2', color: '#a00', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <ThumbsDown size={12} /> Request Revision
+                                  </button>
+                                  <button onClick={() => reviewSubmission(s.id, 'accepted')} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <ThumbsUp size={12} /> Accept
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {s.review_note && (
+                                  <div style={{ fontSize: '11px', color: '#c98745', background: '#fff', borderLeft: '2px solid var(--copper)', padding: '4px 8px', marginBottom: '8px', borderRadius: '0 4px 4px 0' }}>
+                                    <strong>Review Note:</strong> {s.review_note}
+                                  </div>
+                                )}
+                                <button onClick={() => triggerSubmissionReview(s)} style={{ background: '#eef0ea', color: '#111512', minHeight: '28px', fontSize: '11px', padding: '0 10px', borderRadius: '4px', border: 0, cursor: 'pointer' }}>
+                                  <Edit2 size={11} /> {s.status === 'submitted' ? 'Review' : 'Change decision'}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </article>
                 </div>
               )}
@@ -920,7 +1210,11 @@ export function AdminPage() {
                         alignItems: 'center'
                       }}
                     >
-                      <img src={p.image_url || '/images/arcus/ebike.png'} alt="" style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #dfe1da', flexShrink: 0 }} />
+                      {p.image_url ? (
+                        <img src={p.image_url} alt="" style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #dfe1da', flexShrink: 0 }} />
+                      ) : (
+                        <div style={{ width: '56px', height: '56px', borderRadius: '6px', border: '1px solid #dfe1da', background: '#eef0ea', flexShrink: 0 }} role="img" aria-label={p.name} />
+                      )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <strong style={{ fontSize: '14px' }}>{p.name}</strong>
@@ -1049,7 +1343,7 @@ export function AdminPage() {
               <h2 style={{ margin: 0, fontSize: '20px' }}>Broadcast to {selectedEvent.title} attendees</h2>
               <button onClick={() => setShowBroadcastModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
             </div>
-            <p style={{ fontSize: '12px', color: '#5a625d', margin: 0 }}>This will dispatch an announcement/update email to all {eventReservations.length} confirmed seat reservation(s).</p>
+            <p style={{ fontSize: '12px', color: '#5a625d', margin: 0 }}>This will dispatch an announcement/update email to all {eventReservations.filter((r) => r.status === 'confirmed').length} confirmed seat reservation(s).</p>
             <form onSubmit={sendBroadcast} style={{ display: 'grid', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Subject</label>
@@ -1096,7 +1390,7 @@ export function AdminPage() {
               </div>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Image URL</label>
-                <input placeholder="https://... or /images/arcus/ebike.png" value={productForm.image_url} onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                <input placeholder="https://example.com/product-photo.jpg" value={productForm.image_url} onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
                 {productForm.image_url && (
                   <div style={{ marginTop: '8px', borderRadius: '6px', overflow: 'hidden', maxHeight: '80px' }}>
                     <img src={productForm.image_url} alt="Preview" style={{ width: '100%', objectFit: 'cover', maxHeight: '80px' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />

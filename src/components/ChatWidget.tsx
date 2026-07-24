@@ -1,5 +1,6 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { Bot, Send, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { api } from '../lib/api';
 import type { ChatMessage } from '../types';
 
@@ -19,6 +20,9 @@ export function ChatWidget() {
     try {
       const message = await api.chat(current, sessionID);
       setMessages((items) => [...items, message]);
+    } catch {
+      setQuestion(current); // restore the unsent question so the user can retry
+      toast.error('Arcus Assist is unavailable right now. Please try again in a moment.');
     } finally {
       setLoading(false);
     }
@@ -33,7 +37,7 @@ export function ChatWidget() {
             <button onClick={() => setOpen(false)} aria-label="Close chat"><X size={18} /></button>
           </div>
           <div className="chat-log">
-            {messages.length === 0 && <p>Ask about quotes, PCB design, workshops, Chofa, or Innovation Hub enrollment.</p>}
+            {messages.length === 0 && <p>Ask about quotes, PCB design, workshops, or Innovation Hub enrollment.</p>}
             {messages.map((message) => (
               <article key={message.id || message.question}>
                 <strong>{message.question}</strong>

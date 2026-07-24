@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -32,6 +32,49 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return payload as T;
 }
 
+// Upload helper: sends a FormData body. Do NOT set Content-Type — the browser
+// must set it (including the multipart boundary). Auth header is still required.
+async function requestUpload<T>(path: string, formData: FormData): Promise<T> {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error ?? 'Request failed');
+  }
+  return payload as T;
+}
+
+// Blob-download helper: the JWT lives in localStorage and must be sent as an
+// Authorization header, which a plain <a href> cannot do. Fetch the file as a
+// Blob with the header attached, then trigger a save via a temporary <a download>.
+async function downloadBlob(path: string, fileName: string): Promise<void> {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error ?? 'Download failed');
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   // Auth
   login: (email: string, password: string) =>
@@ -62,13 +105,26 @@ export const api = {
 
   // Student hub
   studentDashboard: () =>
-    request<{ profile: any; enrollment: Enrollment; milestones: any[]; comments: any[] }>('/student/dashboard'),
+    request<{ profile: any; enrollment: Enrollment; milestones: any[]; comments: any[]; progress_reports: ProgressReport[]; extensions: ExtensionRequest[]; submissions: Submission[] }>('/student/dashboard'),
   updateCapstone: (title: string, summary: string) =>
     request<any>('/student/capstone', { method: 'PATCH', body: JSON.stringify({ title, summary }) }),
   updateMilestone: (mid: string, body: { status?: string; feedback?: string }) =>
     request<any>(`/student/milestones/${mid}`, { method: 'PATCH', body: JSON.stringify(body) }),
   postComment: (message: string) =>
     request<any>('/student/comments', { method: 'POST', body: JSON.stringify({ message }) }),
+  submitProgressReport: (body: { period_start: string; period_end: string; accomplishments: string; challenges: string }) =>
+    request<ProgressReport>('/student/progress-reports', { method: 'POST', body: JSON.stringify(body) }),
+  submitExtension: (body: { extension_type: string; requested_deadline: string; reason: string }) =>
+    request<ExtensionRequest>('/student/extensions', { method: 'POST', body: JSON.stringify(body) }),
+  submitSubmission: (body: { title: string; kind: string; file: File }) => {
+    const formData = new FormData();
+    formData.append('title', body.title);
+    formData.append('kind', body.kind);
+    formData.append('file', body.file);
+    return requestUpload<Submission>('/student/submissions', formData);
+  },
+  downloadSubmission: (id: string, scope: 'student' | 'admin', fileName: string) =>
+    downloadBlob(`/${scope}/submissions/${id}/file`, fileName),
 
   // Admin — overview
   adminMetrics: () =>
@@ -91,11 +147,17 @@ export const api = {
 
   // Admin — students (hub portal)
   listStudents: () => request<User[]>('/admin/students'),
-  getStudent: (id: string) => request<{ user: User; profile: any; milestones: any[]; comments: any[] }>(`/admin/students/${id}`),
+  getStudent: (id: string) => request<{ user: User; profile: any; milestones: any[]; comments: any[]; progress_reports: ProgressReport[]; extensions: ExtensionRequest[]; submissions: Submission[] }>(`/admin/students/${id}`),
   adminPostComment: (studentId: string, message: string) =>
     request<any>(`/admin/students/${studentId}/comments`, { method: 'POST', body: JSON.stringify({ message }) }),
   adminUpdateMilestone: (studentId: string, mid: string, body: { status?: string; feedback?: string }) =>
     request<any>(`/admin/students/${studentId}/milestones/${mid}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  adminRespondProgressReport: (id: string, body: { supervisor_feedback: string; status: string }) =>
+    request<ProgressReport>(`/admin/progress-reports/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  adminRespondExtension: (id: string, body: { status: string; decision_note: string }) =>
+    request<ExtensionRequest>(`/admin/extensions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  adminReviewSubmission: (id: string, body: { status: 'accepted' | 'revise'; review_note: string }) =>
+    request<Submission>(`/admin/submissions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   // Admin — events
   adminListEvents: () => request<any[]>('/admin/events'),
@@ -128,3 +190,14 @@ export const api = {
   createUser: (body: { email: string; full_name: string; password: string; role: string }) =>
     request<User>('/admin/users', { method: 'POST', body: JSON.stringify(body) }),
 };
+
+// Client-side guard mirroring the backend's 15 MB limit on submission uploads.
+export const MAX_SUBMISSION_FILE_SIZE = 15 * 1024 * 1024;
+
+export function formatFileSize(bytes: number): string {
+  if (!bytes || bytes <= 0) return '0 KB';
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(kb < 10 ? 1 : 0)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
+}
