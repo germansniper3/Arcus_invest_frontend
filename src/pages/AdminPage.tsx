@@ -3,7 +3,7 @@ import {
   LogOut, RefreshCcw, UserPlus, FileText, Calendar,
   Send, CheckSquare, Plus, Edit2, Trash2,
   Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
-  UploadCloud, Download, Target
+  UploadCloud, Download, Target, Lock, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE } from '../lib/api';
@@ -25,6 +25,13 @@ const GRADE_STYLES: Record<OpportunityGrade, { bg: string; fg: string; label: st
   platinum: { bg: '#e2ecf2', fg: '#37607a', label: 'Platinum' },
 };
 const ZMW = (n: number) => `${Math.round(n).toLocaleString()} ZMW`;
+
+// Gated submission pipeline (mirrors the student side + backend stage order).
+const SUBMISSION_STEPS: { key: string; label: string }[] = [
+  { key: 'proposal', label: 'Proposal' },
+  { key: 'report', label: 'Report' },
+  { key: 'final', label: 'Final' },
+];
 
 export function AdminPage() {
   const { user, logout } = useAuth();
@@ -1164,65 +1171,111 @@ export function AdminPage() {
                       <h3 style={{ margin: 0, fontSize: '18px' }}>Submissions</h3>
                     </div>
                     <div style={{ display: 'grid', gap: '12px' }}>
-                      {studentDetails.submissions.length === 0 ? (
-                        <p style={{ fontSize: '12px', color: '#5a625d', textAlign: 'center', padding: '12px' }}>No submissions yet.</p>
-                      ) : (
-                        studentDetails.submissions.map((s) => (
-                          <div key={s.id} style={{ padding: '12px', background: '#f7f8f3', border: '1px solid #d8dbd1', borderRadius: '6px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                              <strong style={{ color: '#111512', fontSize: '13px' }}>{s.title}</strong>
-                              <span style={{
-                                fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold',
-                                background: s.status === 'accepted' ? '#e8f2dc' : s.status === 'revise' ? '#fff3e0' : '#f0f0f0',
-                                color: s.status === 'accepted' ? '#35520f' : s.status === 'revise' ? '#c98745' : '#555'
-                              }}>{s.status.toUpperCase()}</span>
-                            </div>
-                            <div style={{ fontSize: '11px', color: '#5a625d', marginBottom: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                              <span style={{ textTransform: 'capitalize' }}>{s.kind}</span>
-                              <span>{s.file_name}</span>
-                              <span>{formatFileSize(s.size)}</span>
-                            </div>
-                            <button
-                              onClick={() => downloadAdminSubmission(s)}
-                              disabled={downloadingSubmissionId === s.id}
-                              style={{ background: '#eef0ea', color: '#111512', minHeight: '28px', fontSize: '11px', padding: '0 10px', borderRadius: '4px', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}
-                            >
-                              <Download size={11} /> {downloadingSubmissionId === s.id ? 'Downloading...' : 'Download'}
-                            </button>
-                            {editingSubmissionId === s.id ? (
-                              <div style={{ display: 'grid', gap: '8px' }}>
-                                <input
-                                  placeholder="Review note (optional)..."
-                                  value={submissionNoteDraft}
-                                  onChange={(e) => setSubmissionNoteDraft(e.target.value)}
-                                  style={{ color: '#111512', background: '#fff', border: '1px solid #d8dbd1', fontSize: '12px', padding: '8px' }}
-                                />
-                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                  <button onClick={() => setEditingSubmissionId(null)} style={{ background: '#eef0ea', color: '#111512', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Cancel</button>
-                                  <button onClick={() => reviewSubmission(s.id, 'revise')} style={{ background: '#ffe2e2', color: '#a00', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                    <ThumbsDown size={12} /> Request Revision
-                                  </button>
-                                  <button onClick={() => reviewSubmission(s.id, 'accepted')} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                    <ThumbsUp size={12} /> Accept
-                                  </button>
-                                </div>
+                      {SUBMISSION_STEPS.map((step, i) => {
+                        const mine = studentDetails.submissions
+                          .filter((s) => s.kind === step.key)
+                          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                        const latest = mine[0];
+                        const accepted = mine.some((s) => s.status === 'accepted');
+                        const prevAccepted = i === 0 || studentDetails.submissions.some((s) => s.kind === SUBMISSION_STEPS[i - 1].key && s.status === 'accepted');
+                        const unlocked = i === 0 || prevAccepted;
+                        const state: 'done' | 'active' | 'locked' = accepted ? 'done' : unlocked ? 'active' : 'locked';
+                        const accent = state === 'done' ? '#5f7c29' : state === 'active' ? '#2a5788' : '#b0b4ab';
+                        return (
+                          <div key={step.key} style={{ padding: '12px', background: state === 'locked' ? '#f3f4f0' : '#f7f8f3', border: '1px solid #d8dbd1', borderLeft: `4px solid ${accent}`, borderRadius: '6px', opacity: state === 'locked' ? 0.75 : 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: latest ? '8px' : 0 }}>
+                              <div style={{ width: '22px', height: '22px', borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: '11px', fontWeight: 'bold', background: state === 'done' ? '#e8f2dc' : state === 'active' ? '#e2ecf8' : '#e7e9e3', color: accent, flexShrink: 0 }}>
+                                {state === 'done' ? <CheckCircle2 size={14} /> : state === 'locked' ? <Lock size={12} /> : i + 1}
                               </div>
-                            ) : (
-                              <>
-                                {s.review_note && (
-                                  <div style={{ fontSize: '11px', color: '#c98745', background: '#fff', borderLeft: '2px solid var(--copper)', padding: '4px 8px', marginBottom: '8px', borderRadius: '0 4px 4px 0' }}>
-                                    <strong>Review Note:</strong> {s.review_note}
-                                  </div>
-                                )}
-                                <button onClick={() => triggerSubmissionReview(s)} style={{ background: '#eef0ea', color: '#111512', minHeight: '28px', fontSize: '11px', padding: '0 10px', borderRadius: '4px', border: 0, cursor: 'pointer' }}>
-                                  <Edit2 size={11} /> {s.status === 'submitted' ? 'Review' : 'Change decision'}
+                              <strong style={{ color: '#111512', fontSize: '13px' }}>Step {i + 1}: {step.label}</strong>
+                              {latest && (
+                                <span style={{
+                                  marginLeft: 'auto', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase',
+                                  background: latest.status === 'accepted' ? '#e8f2dc' : latest.status === 'revise' ? '#fff3e0' : '#e2ecf8',
+                                  color: latest.status === 'accepted' ? '#35520f' : latest.status === 'revise' ? '#c98745' : '#2a5788'
+                                }}>{latest.status === 'submitted' ? 'awaiting review' : latest.status}</span>
+                              )}
+                            </div>
+
+                            {!latest && (
+                              <p style={{ fontSize: '11px', color: '#8a908a', margin: 0, paddingLeft: '30px' }}>
+                                {state === 'locked' ? `Locked — unlocks after Step ${i} is approved.` : 'Awaiting student upload.'}
+                              </p>
+                            )}
+
+                            {latest && (
+                              <div style={{ paddingLeft: '30px' }}>
+                                <div style={{ fontSize: '11px', color: '#5a625d', marginBottom: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                  <span>{latest.file_name}</span>
+                                  <span>{formatFileSize(latest.size)}</span>
+                                  {mine.length > 1 && <span>· {mine.length} versions</span>}
+                                </div>
+                                <button
+                                  onClick={() => downloadAdminSubmission(latest)}
+                                  disabled={downloadingSubmissionId === latest.id}
+                                  style={{ background: '#eef0ea', color: '#111512', minHeight: '28px', fontSize: '11px', padding: '0 10px', borderRadius: '4px', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}
+                                >
+                                  <Download size={11} /> {downloadingSubmissionId === latest.id ? 'Downloading...' : 'Download'}
                                 </button>
-                              </>
+                                {editingSubmissionId === latest.id ? (
+                                  <div style={{ display: 'grid', gap: '8px' }}>
+                                    <input
+                                      placeholder="Review note (optional)..."
+                                      value={submissionNoteDraft}
+                                      onChange={(e) => setSubmissionNoteDraft(e.target.value)}
+                                      style={{ color: '#111512', background: '#fff', border: '1px solid #d8dbd1', fontSize: '12px', padding: '8px' }}
+                                    />
+                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                      <button onClick={() => setEditingSubmissionId(null)} style={{ background: '#eef0ea', color: '#111512', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Cancel</button>
+                                      <button onClick={() => reviewSubmission(latest.id, 'revise')} style={{ background: '#ffe2e2', color: '#a00', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <ThumbsDown size={12} /> Request Revision
+                                      </button>
+                                      <button onClick={() => reviewSubmission(latest.id, 'accepted')} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <ThumbsUp size={12} /> Accept &amp; unlock next
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    {latest.review_note && (
+                                      <div style={{ fontSize: '11px', color: '#c98745', background: '#fff', borderLeft: '2px solid var(--copper)', padding: '4px 8px', marginBottom: '8px', borderRadius: '0 4px 4px 0' }}>
+                                        <strong>Review Note:</strong> {latest.review_note}
+                                      </div>
+                                    )}
+                                    <button onClick={() => triggerSubmissionReview(latest)} style={{ background: '#eef0ea', color: '#111512', minHeight: '28px', fontSize: '11px', padding: '0 10px', borderRadius: '4px', border: 0, cursor: 'pointer' }}>
+                                      <Edit2 size={11} /> {latest.status === 'submitted' ? 'Review' : 'Change decision'}
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             )}
                           </div>
-                        ))
-                      )}
+                        );
+                      })}
                     </div>
+                    {(() => {
+                      const extras = studentDetails.submissions.filter((s) => !SUBMISSION_STEPS.some((st) => st.key === s.kind));
+                      if (extras.length === 0) return null;
+                      return (
+                        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e4dd' }}>
+                          <span style={{ fontSize: '11px', color: '#5a625d', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>OTHER FILES</span>
+                          <div style={{ display: 'grid', gap: '8px' }}>
+                            {extras.map((s) => (
+                              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#5a625d', background: '#f7f8f3', border: '1px solid #e2e4dd', borderRadius: '6px', padding: '8px 10px' }}>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title} · {s.file_name}</span>
+                                <button
+                                  onClick={() => downloadAdminSubmission(s)}
+                                  disabled={downloadingSubmissionId === s.id}
+                                  style={{ background: '#eef0ea', color: '#111512', minHeight: '26px', fontSize: '11px', padding: '0 8px', borderRadius: '4px', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
+                                >
+                                  <Download size={11} /> {downloadingSubmissionId === s.id ? '...' : 'Download'}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </article>
                 </div>
               )}
