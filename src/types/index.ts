@@ -168,6 +168,17 @@ export type OpportunityStage =
 
 export type OpportunityGrade = 'bronze' | 'silver' | 'gold' | 'platinum';
 
+export type OpportunitySegment = 'strategic' | 'growth' | 'standard';
+
+export interface OpportunityContact {
+  id?: string;
+  name: string;
+  role: string;
+  email: string;
+  phone?: string;
+  is_primary: boolean;
+}
+
 export interface Opportunity {
   id: string;
   created_at: string;
@@ -177,6 +188,7 @@ export interface Opportunity {
   contact_name: string;
   contact_email: string;
   sector: string;
+  segment: OpportunitySegment;
   stage: OpportunityStage;
   grade: OpportunityGrade;
   deal_value: number;
@@ -186,6 +198,7 @@ export interface Opportunity {
   source_quote_id?: string | null;
   expected_close_at?: string | null;
   notes: string;
+  contacts: OpportunityContact[];
 }
 
 export interface PipelineStageSummary {
@@ -198,6 +211,7 @@ export interface PipelineStageSummary {
 export interface AccountRollup {
   account: string;
   sector: string;
+  segment: string;
   deal_count: number;
   open_count: number;
   open_value: number;

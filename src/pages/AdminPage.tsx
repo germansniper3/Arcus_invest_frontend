@@ -8,7 +8,7 @@ import {
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityStage, OpportunityGrade, PipelineForecast, AccountsIndex } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, PipelineForecast, AccountsIndex } from '../types';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts';
 
@@ -25,6 +25,21 @@ const GRADE_STYLES: Record<OpportunityGrade, { bg: string; fg: string; label: st
   platinum: { bg: '#e2ecf2', fg: '#37607a', label: 'Platinum' },
 };
 const ZMW = (n: number) => `${Math.round(n).toLocaleString()} ZMW`;
+
+// ABM account segments + buying-committee roles.
+const SEGMENT_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
+  strategic: { bg: '#e7dff2', fg: '#5b3a8a', label: 'Strategic' },
+  growth: { bg: '#dcefe0', fg: '#2f6b3d', label: 'Growth' },
+  standard: { bg: '#eceee7', fg: '#5a625d', label: 'Standard' },
+};
+const CONTACT_ROLES: { value: string; label: string }[] = [
+  { value: 'decision_maker', label: 'Decision Maker' },
+  { value: 'champion', label: 'Champion' },
+  { value: 'influencer', label: 'Influencer' },
+  { value: 'technical', label: 'Technical' },
+  { value: 'procurement', label: 'Procurement' },
+  { value: 'other', label: 'Other' },
+];
 
 // Gated submission pipeline (mirrors the student side + backend stage order).
 const SUBMISSION_STEPS: { key: string; label: string }[] = [
@@ -91,7 +106,7 @@ export function AdminPage() {
   const [forecast, setForecast] = useState<PipelineForecast | null>(null);
   const [staff, setStaff] = useState<User[]>([]);
   const [showOpportunityModal, setShowOpportunityModal] = useState(false);
-  const emptyOpportunity = { id: '', name: '', account_name: '', contact_name: '', contact_email: '', sector: '', stage: 'prospecting' as OpportunityStage, grade: 'bronze' as OpportunityGrade, deal_value: 0, probability: 10, owner_id: '', expected_close_at: '', notes: '' };
+  const emptyOpportunity = { id: '', name: '', account_name: '', contact_name: '', contact_email: '', sector: '', segment: 'standard' as OpportunitySegment, stage: 'prospecting' as OpportunityStage, grade: 'bronze' as OpportunityGrade, deal_value: 0, probability: 10, owner_id: '', expected_close_at: '', notes: '', contacts: [] as OpportunityContact[] };
   const [opportunityForm, setOpportunityForm] = useState(emptyOpportunity);
 
   // Accounts & VSI State
@@ -527,11 +542,22 @@ export function AdminPage() {
   function openEditOpportunityModal(o: Opportunity) {
     setOpportunityForm({
       id: o.id, name: o.name, account_name: o.account_name, contact_name: o.contact_name,
-      contact_email: o.contact_email, sector: o.sector, stage: o.stage, grade: o.grade,
+      contact_email: o.contact_email, sector: o.sector, segment: o.segment ?? 'standard', stage: o.stage, grade: o.grade,
       deal_value: o.deal_value, probability: o.probability, owner_id: o.owner_id ?? '',
       expected_close_at: o.expected_close_at ? o.expected_close_at.slice(0, 10) : '', notes: o.notes,
+      contacts: (o.contacts ?? []).map((c) => ({ ...c })),
     });
     setShowOpportunityModal(true);
+  }
+
+  function addContact() {
+    setOpportunityForm((prev) => ({ ...prev, contacts: [...prev.contacts, { name: '', role: 'decision_maker', email: '', is_primary: prev.contacts.length === 0 }] }));
+  }
+  function updateContact(i: number, patch: Partial<OpportunityContact>) {
+    setOpportunityForm((prev) => ({ ...prev, contacts: prev.contacts.map((c, idx) => (idx === i ? { ...c, ...patch } : c)) }));
+  }
+  function removeContact(i: number) {
+    setOpportunityForm((prev) => ({ ...prev, contacts: prev.contacts.filter((_, idx) => idx !== i) }));
   }
 
   async function saveOpportunity(e: React.FormEvent) {
@@ -542,6 +568,7 @@ export function AdminPage() {
       contact_name: opportunityForm.contact_name,
       contact_email: opportunityForm.contact_email,
       sector: opportunityForm.sector,
+      segment: opportunityForm.segment,
       stage: opportunityForm.stage,
       grade: opportunityForm.grade,
       deal_value: Number(opportunityForm.deal_value) || 0,
@@ -549,6 +576,7 @@ export function AdminPage() {
       owner_id: opportunityForm.owner_id || NIL_UUID, // nil UUID = unassign server-side
       expected_close_at: opportunityForm.expected_close_at ? new Date(opportunityForm.expected_close_at).toISOString() : null,
       notes: opportunityForm.notes,
+      contacts: opportunityForm.contacts.filter((c) => c.name.trim()),
     };
     try {
       if (opportunityForm.id) {
@@ -1527,9 +1555,17 @@ export function AdminPage() {
                           <div key={o.id} onClick={() => openEditOpportunityModal(o)} style={{ background: '#fff', border: '1px solid #d6d8d0', borderRadius: '8px', padding: '12px', cursor: 'pointer', display: 'grid', gap: '8px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'flex-start' }}>
                               <strong style={{ fontSize: '14px', color: '#111512', lineHeight: 1.25 }}>{o.name}</strong>
-                              <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: '10px', background: grade.bg, color: grade.fg }}>{grade.label}</span>
+                              <div style={{ display: 'flex', gap: '4px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                {o.segment && o.segment !== 'standard' && (
+                                  <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: '10px', background: SEGMENT_STYLES[o.segment].bg, color: SEGMENT_STYLES[o.segment].fg }}>{SEGMENT_STYLES[o.segment].label}</span>
+                                )}
+                                <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: '10px', background: grade.bg, color: grade.fg }}>{grade.label}</span>
+                              </div>
                             </div>
                             {o.account_name && <div style={{ fontSize: '12px', color: '#5a625d' }}>{o.account_name}{o.sector ? ` · ${o.sector}` : ''}</div>}
+                            {o.contacts && o.contacts.length > 0 && (
+                              <div style={{ fontSize: '11px', color: '#8a908a' }}>{o.contacts.length} stakeholder{o.contacts.length === 1 ? '' : 's'}</div>
+                            )}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                               <strong style={{ fontSize: '14px', color: '#111512' }}>{ZMW(o.deal_value)}</strong>
                               <span style={{ fontSize: '11px', color: '#5f7c29', fontWeight: 700 }}>{o.probability}%</span>
@@ -1609,6 +1645,7 @@ export function AdminPage() {
                         <tr style={{ textAlign: 'left', color: '#5a625d', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                           <th style={{ padding: '12px 14px' }}>Account</th>
                           <th style={{ padding: '12px 14px' }}>Sector</th>
+                          <th style={{ padding: '12px 14px' }}>Segment</th>
                           <th style={{ padding: '12px 14px' }}>Grade</th>
                           <th style={{ padding: '12px 14px', textAlign: 'right' }}>Open deals</th>
                           <th style={{ padding: '12px 14px', textAlign: 'right' }}>Weighted</th>
@@ -1623,6 +1660,9 @@ export function AdminPage() {
                             <tr key={a.account} style={{ borderTop: '1px solid #eceee7' }}>
                               <td style={{ padding: '12px 14px', fontWeight: 700 }}>{a.account}</td>
                               <td style={{ padding: '12px 14px', color: '#5a625d' }}>{a.sector}</td>
+                              <td style={{ padding: '12px 14px' }}>
+                                {a.segment && SEGMENT_STYLES[a.segment] ? <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: '10px', background: SEGMENT_STYLES[a.segment].bg, color: SEGMENT_STYLES[a.segment].fg }}>{SEGMENT_STYLES[a.segment].label}</span> : '—'}
+                              </td>
                               <td style={{ padding: '12px 14px' }}>
                                 {grade ? <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: '10px', background: grade.bg, color: grade.fg }}>{grade.label}</span> : '—'}
                               </td>
@@ -1856,7 +1896,13 @@ export function AdminPage() {
                   <input type="number" min="0" max="100" value={opportunityForm.probability} onChange={(e) => setOpportunityForm({ ...opportunityForm, probability: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Segment</label>
+                  <select value={opportunityForm.segment} onChange={(e) => setOpportunityForm({ ...opportunityForm, segment: e.target.value as OpportunitySegment })} style={{ color: '#111512', background: '#f7f8f3' }}>
+                    {(['strategic', 'growth', 'standard'] as OpportunitySegment[]).map((s) => <option key={s} value={s}>{SEGMENT_STYLES[s].label}</option>)}
+                  </select>
+                </div>
                 <div>
                   <label style={{ fontSize: '12px', color: '#5a625d' }}>Owner</label>
                   <select value={opportunityForm.owner_id} onChange={(e) => setOpportunityForm({ ...opportunityForm, owner_id: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }}>
@@ -1865,10 +1911,39 @@ export function AdminPage() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Expected Close Date</label>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Expected Close</label>
                   <input type="date" value={opportunityForm.expected_close_at} onChange={(e) => setOpportunityForm({ ...opportunityForm, expected_close_at: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
                 </div>
               </div>
+
+              {/* Buying committee */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Buying Committee</label>
+                  <button type="button" onClick={addContact} style={{ background: '#eef0ea', border: 0, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', color: '#111512', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <Plus size={12} /> Add contact
+                  </button>
+                </div>
+                {opportunityForm.contacts.length === 0 ? (
+                  <p style={{ fontSize: '12px', color: '#8a908a', margin: 0 }}>No stakeholders yet — add the decision makers and champions on this deal.</p>
+                ) : (
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {opportunityForm.contacts.map((ct, i) => (
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.3fr auto', gap: '6px', alignItems: 'center' }}>
+                        <input placeholder="Name" value={ct.name} onChange={(e) => updateContact(i, { name: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '8px 10px' }} />
+                        <select value={ct.role} onChange={(e) => updateContact(i, { role: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '8px 10px' }}>
+                          {CONTACT_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                        </select>
+                        <input placeholder="Email" value={ct.email} onChange={(e) => updateContact(i, { email: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '8px 10px' }} />
+                        <button type="button" onClick={() => removeContact(i)} title="Remove" style={{ background: '#f7f8f3', border: '1px solid #e2e4dd', borderRadius: '4px', padding: '8px', cursor: 'pointer', color: '#a00', display: 'inline-flex' }}>
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Notes</label>
                 <textarea value={opportunityForm.notes} onChange={(e) => setOpportunityForm({ ...opportunityForm, notes: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '70px' }} />
