@@ -6,7 +6,7 @@ import {
   UploadCloud, Download
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, formatFileSize } from '../lib/api';
+import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission } from '../types';
 
@@ -63,6 +63,7 @@ export function AdminPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState({ id: '', name: '', description: '', price: 0, stock: 0, image_url: '', specs: '', is_published: true });
   const [showProductModal, setShowProductModal] = useState(false);
+  const [uploadingProductImage, setUploadingProductImage] = useState(false);
 
   async function loadData() {
     try {
@@ -395,6 +396,24 @@ export function AdminPage() {
     setShowProductModal(true);
   }
 
+  async function handleProductImageUpload(file: File | undefined) {
+    if (!file) return;
+    if (file.size > MAX_PRODUCT_IMAGE_SIZE) {
+      toast.error('Image is too large. Maximum size is 5 MB.');
+      return;
+    }
+    setUploadingProductImage(true);
+    try {
+      const url = await api.uploadProductImage(file);
+      setProductForm((prev) => ({ ...prev, image_url: url }));
+      toast.success('Image uploaded');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to upload image');
+    } finally {
+      setUploadingProductImage(false);
+    }
+  }
+
   async function saveProduct(e: React.FormEvent) {
     e.preventDefault();
     try {
@@ -428,48 +447,30 @@ export function AdminPage() {
   return (
     <main className="workspace">
       <aside className="rail">
-        <strong style={{ fontSize: '18px', display: 'block', marginBottom: '8px' }}>Arcus Admin Portal</strong>
-        <span style={{ fontSize: '13px', marginBottom: '24px' }}>{user?.full_name}</span>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
-          <button 
-            onClick={() => setActiveTab('overview')} 
-            className={activeTab === 'overview' ? 'active' : ''} 
-            style={{ background: activeTab === 'overview' ? 'var(--accent)' : 'transparent', color: activeTab === 'overview' ? '#11170e' : '#fff' }}
-          >
-            <Settings size={16} /> Overview
-          </button>
-          <button 
-            onClick={() => setActiveTab('enrollments')} 
-            className={activeTab === 'enrollments' ? 'active' : ''} 
-            style={{ background: activeTab === 'enrollments' ? 'var(--accent)' : 'transparent', color: activeTab === 'enrollments' ? '#11170e' : '#fff' }}
-          >
-            <UserPlus size={16} /> Enrollments
-          </button>
-          <button 
-            onClick={() => setActiveTab('students')} 
-            className={activeTab === 'students' ? 'active' : ''} 
-            style={{ background: activeTab === 'students' ? 'var(--accent)' : 'transparent', color: activeTab === 'students' ? '#11170e' : '#fff' }}
-          >
-            <GraduationCap size={16} /> Students Portal
-          </button>
-          <button 
-            onClick={() => setActiveTab('events')} 
-            className={activeTab === 'events' ? 'active' : ''} 
-            style={{ background: activeTab === 'events' ? 'var(--accent)' : 'transparent', color: activeTab === 'events' ? '#11170e' : '#fff' }}
-          >
-            <Calendar size={16} /> Events Manager
-          </button>
-          <button 
-            onClick={() => setActiveTab('products')} 
-            className={activeTab === 'products' ? 'active' : ''} 
-            style={{ background: activeTab === 'products' ? 'var(--accent)' : 'transparent', color: activeTab === 'products' ? '#11170e' : '#fff' }}
-          >
-            <CheckSquare size={16} /> Products
-          </button>
+        <div className="rail-head">
+          <strong className="rail-title">Arcus Admin Portal</strong>
+          <span className="rail-user">{user?.full_name}</span>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <nav className="rail-nav">
+          {([
+            ['overview', 'Overview', Settings],
+            ['enrollments', 'Enrollments', UserPlus],
+            ['students', 'Students Portal', GraduationCap],
+            ['events', 'Events Manager', Calendar],
+            ['products', 'Products', CheckSquare],
+          ] as [Tab, string, typeof Settings][]).map(([tab, label, Icon]) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={activeTab === tab ? 'active' : ''}
+            >
+              <Icon size={16} /> {label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="rail-actions">
           <button onClick={() => loadData()}><RefreshCcw size={17} /> Refresh Data</button>
           <button onClick={logout}><LogOut size={17} /> Logout</button>
         </div>
@@ -1287,8 +1288,8 @@ export function AdminPage() {
 
       {/* Create / Edit Event Modal */}
       {showEventModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'grid', placeItems: 'center' }}>
-          <div style={{ background: '#fff', border: '1px solid #d8dbd1', color: '#111512', borderRadius: '8px', padding: '32px', width: 'min(500px, 90vw)', display: 'grid', gap: '16px' }}>
+        <div className="modal-overlay">
+          <div className="modal-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ margin: 0, fontSize: '22px' }}>{eventForm.id ? 'Edit Event' : 'Create Event'}</h2>
               <button onClick={() => setShowEventModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
@@ -1337,8 +1338,8 @@ export function AdminPage() {
 
       {/* Broadcast Modal */}
       {showBroadcastModal && selectedEvent && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'grid', placeItems: 'center' }}>
-          <div style={{ background: '#fff', border: '1px solid #d8dbd1', color: '#111512', borderRadius: '8px', padding: '32px', width: 'min(500px, 90vw)', display: 'grid', gap: '16px' }}>
+        <div className="modal-overlay">
+          <div className="modal-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ margin: 0, fontSize: '20px' }}>Broadcast to {selectedEvent.title} attendees</h2>
               <button onClick={() => setShowBroadcastModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
@@ -1363,8 +1364,8 @@ export function AdminPage() {
 
       {/* Create / Edit Product Modal */}
       {showProductModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'grid', placeItems: 'center' }}>
-          <div style={{ background: '#fff', border: '1px solid #d8dbd1', color: '#111512', borderRadius: '8px', padding: '32px', width: 'min(500px, 90vw)', display: 'grid', gap: '16px', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div className="modal-overlay">
+          <div className="modal-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ margin: 0, fontSize: '22px' }}>{productForm.id ? 'Edit Product' : 'New Product'}</h2>
               <button onClick={() => setShowProductModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
@@ -1389,11 +1390,31 @@ export function AdminPage() {
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Image URL</label>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Product Image</label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+                  <label
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#eef0ea', color: '#111512', border: '1px solid #d8dbd1', borderRadius: '6px', padding: '0 14px', minHeight: '40px', fontSize: '13px', fontWeight: 700, cursor: uploadingProductImage ? 'default' : 'pointer', opacity: uploadingProductImage ? 0.6 : 1, whiteSpace: 'nowrap' }}
+                  >
+                    <UploadCloud size={15} /> {uploadingProductImage ? 'Uploading…' : 'Upload image'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      disabled={uploadingProductImage}
+                      onChange={(e) => { handleProductImageUpload(e.target.files?.[0]); e.target.value = ''; }}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                  {productForm.image_url && (
+                    <button type="button" onClick={() => setProductForm({ ...productForm, image_url: '' })} style={{ background: 'transparent', border: '1px solid #d8dbd1', color: '#5a625d', borderRadius: '6px', padding: '0 12px', minHeight: '40px', fontSize: '13px', cursor: 'pointer' }}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p style={{ fontSize: '11px', color: '#8a908a', margin: '6px 0 4px' }}>PNG, JPG, WEBP or GIF up to 5 MB — or paste an image link below.</p>
                 <input placeholder="https://example.com/product-photo.jpg" value={productForm.image_url} onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
                 {productForm.image_url && (
-                  <div style={{ marginTop: '8px', borderRadius: '6px', overflow: 'hidden', maxHeight: '80px' }}>
-                    <img src={productForm.image_url} alt="Preview" style={{ width: '100%', objectFit: 'cover', maxHeight: '80px' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  <div style={{ marginTop: '8px', borderRadius: '6px', overflow: 'hidden', maxHeight: '120px' }}>
+                    <img src={productForm.image_url} alt="Preview" style={{ width: '100%', objectFit: 'cover', maxHeight: '120px' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                   </div>
                 )}
               </div>

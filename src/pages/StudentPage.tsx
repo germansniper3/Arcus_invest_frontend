@@ -5,8 +5,20 @@ import { api, formatFileSize, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { Enrollment, StudentProfile, CapstoneMilestone, CapstoneComment, ProgressReport, ExtensionRequest, Submission } from '../types';
 
+type Section = 'overview' | 'milestones' | 'discussion' | 'reports' | 'extensions' | 'submissions';
+
+const SECTION_TITLES: Record<Section, string> = {
+  overview: 'Capstone Overview',
+  milestones: 'Milestone Checklist',
+  discussion: 'Discussion & Updates',
+  reports: 'Progress Reports',
+  extensions: 'Extension Requests',
+  submissions: 'Submissions',
+};
+
 export function StudentPage() {
   const { user, logout } = useAuth();
+  const [activeSection, setActiveSection] = useState<Section>('overview');
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [milestones, setMilestones] = useState<CapstoneMilestone[]>([]);
@@ -215,25 +227,48 @@ export function StudentPage() {
   return (
     <main className="workspace student-workspace">
       <aside className="rail">
-        <strong style={{ fontSize: '18px', display: 'block', marginBottom: '8px' }}>Arcus Student</strong>
-        <span style={{ fontSize: '14px', marginBottom: '24px' }}>{user?.full_name}</span>
-        
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.05em' }}>Program Info</div>
-          <div style={{ background: 'rgba(255,255,255,0.04)', padding: '12px', borderRadius: '6px', fontSize: '13px', border: '1px solid var(--line)' }}>
+        <div className="rail-head">
+          <strong className="rail-title">Arcus Student</strong>
+          <span className="rail-user">{user?.full_name}</span>
+        </div>
+
+        <nav className="rail-nav">
+          {([
+            ['overview', 'Overview', Rocket],
+            ['milestones', 'Milestones', CheckSquare],
+            ['discussion', 'Discussion', MessageSquare],
+            ['reports', 'Progress Reports', FileText],
+            ['extensions', 'Extensions', CalendarClock],
+            ['submissions', 'Submissions', UploadCloud],
+          ] as [Section, string, typeof Rocket][]).map(([section, label, Icon]) => (
+            <button
+              key={section}
+              onClick={() => setActiveSection(section)}
+              className={activeSection === section ? 'active' : ''}
+            >
+              <Icon size={16} /> {label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="rail-program">
+          <div className="rail-program-label">Program Info</div>
+          <div className="rail-program-card">
             <div>Tier: <strong>{enrollment?.tier || profile?.tier}</strong></div>
             <div style={{ marginTop: '6px' }}>Status: <span style={{ color: 'var(--accent)' }}>{enrollment?.status?.replace('_', ' ')}</span></div>
           </div>
         </div>
 
-        <button onClick={logout} style={{ marginTop: 'auto' }}><LogOut size={17} /> Logout</button>
+        <div className="rail-actions">
+          <button onClick={logout}><LogOut size={17} /> Logout</button>
+        </div>
       </aside>
       
       <section className="work-main">
         <div className="workspace-head">
           <div>
             <p className="eyebrow">Student Portal Dashboard</p>
-            <h1>Capstone Progress & Checklists</h1>
+            <h1>{SECTION_TITLES[activeSection]}</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <span style={{ fontSize: '14px', color: '#5a625d', fontWeight: '800' }}>Overall Progress</span>
@@ -241,8 +276,8 @@ export function StudentPage() {
           </div>
         </div>
 
-        <div className="student-grid" style={{ gridTemplateColumns: '1.1fr 0.9fr', gap: '24px', alignItems: 'start' }}>
-          <div style={{ display: 'grid', gap: '24px' }}>
+        {activeSection === 'milestones' && (
+          <div className="student-sections">
             {/* Milestones Checklist Panel */}
             <div className="panel" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
@@ -295,7 +330,11 @@ export function StudentPage() {
                 )}
               </div>
             </div>
+          </div>
+        )}
 
+        {activeSection === 'discussion' && (
+          <div className="student-sections">
             {/* Capstone Comments / Discussion Feed Panel */}
             <div className="panel" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
@@ -337,8 +376,10 @@ export function StudentPage() {
               </form>
             </div>
           </div>
+        )}
 
-          <div style={{ display: 'grid', gap: '24px' }}>
+        {activeSection === 'overview' && (
+          <div className="student-sections">
             {/* Capstone Brief Info Panel */}
             <article className="panel" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
@@ -378,9 +419,10 @@ export function StudentPage() {
               </div>
             </form>
           </div>
-        </div>
+        )}
 
-        <div className="student-grid" style={{ gridTemplateColumns: '1.1fr 0.9fr', gap: '24px', alignItems: 'start', marginTop: '24px' }}>
+        {activeSection === 'reports' && (
+          <div className="student-sections">
           {/* Progress Reports Panel */}
           <div className="panel" style={{ padding: '24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
@@ -498,7 +540,11 @@ export function StudentPage() {
               )}
             </div>
           </div>
+          </div>
+        )}
 
+        {activeSection === 'extensions' && (
+          <div className="student-sections">
           {/* Extension Requests Panel */}
           <div className="panel" style={{ padding: '24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
@@ -577,10 +623,13 @@ export function StudentPage() {
               )}
             </div>
           </div>
-        </div>
+          </div>
+        )}
 
+        {activeSection === 'submissions' && (
+          <div className="student-sections">
         {/* Submissions Panel */}
-        <div className="panel" style={{ padding: '24px', marginTop: '24px' }}>
+        <div className="panel" style={{ padding: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
             <UploadCloud size={22} style={{ color: 'var(--accent)' }} />
             <h2 style={{ margin: 0, fontSize: '22px' }}>Submissions</h2>
@@ -667,6 +716,8 @@ export function StudentPage() {
             )}
           </div>
         </div>
+          </div>
+        )}
       </section>
     </main>
   );

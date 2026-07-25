@@ -181,6 +181,15 @@ export const api = {
     request<Product[]>('/admin/products'),
   adminCreateProduct: (body: any) =>
     request<Product>('/admin/products', { method: 'POST', body: JSON.stringify(body) }),
+  // Uploads a product image and returns an absolute URL to store as image_url.
+  // The backend returns a path relative to the API base; we resolve it against
+  // API_BASE_URL so the stored URL works from any origin (public site + admin).
+  uploadProductImage: async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { url } = await requestUpload<{ url: string }>('/admin/products/image', formData);
+    return `${API_BASE_URL}${url}`;
+  },
   adminUpdateProduct: (id: string, body: any) =>
     request<Product>(`/admin/products/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   adminDeleteProduct: (id: string) =>
@@ -193,6 +202,9 @@ export const api = {
 
 // Client-side guard mirroring the backend's 15 MB limit on submission uploads.
 export const MAX_SUBMISSION_FILE_SIZE = 15 * 1024 * 1024;
+
+// Client-side guard mirroring the backend's 5 MB limit on product images.
+export const MAX_PRODUCT_IMAGE_SIZE = 5 * 1024 * 1024;
 
 export function formatFileSize(bytes: number): string {
   if (!bytes || bytes <= 0) return '0 KB';

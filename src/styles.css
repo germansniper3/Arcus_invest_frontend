@@ -41,7 +41,7 @@ button { cursor: pointer; }
 .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; font-weight: 800; }
 h1, h2, h3, p { margin-top: 0; }
 h1 { font-size: clamp(54px, 10vw, 126px); line-height: 0.9; margin-bottom: 24px; letter-spacing: 0; }
-h2 { font-size: clamp(32px, 5vw, 64px); line-height: 1; margin-bottom: 18px; }
+h2 { font-size: clamp(28px, 3.6vw, 46px); line-height: 1.1; margin-bottom: 18px; }
 h3 { font-size: 20px; margin-bottom: 10px; }
 p { color: var(--muted); line-height: 1.7; }
 .hero-copy p:not(.eyebrow) { max-width: 650px; font-size: 19px; color: #ede8d8; }
@@ -60,7 +60,10 @@ p { color: var(--muted); line-height: 1.7; }
 .text-link { color: var(--accent); font-weight: 800; }
 
 .band, .quote-section, .proof { padding: 92px clamp(20px, 5vw, 72px); }
-.section-head { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 40px; align-items: end; margin-bottom: 42px; }
+.section-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: start; margin-bottom: 42px; }
+/* A section head with a single child (e.g. Products, Gallery) should span the
+   full width instead of leaving the second grid column empty. */
+.section-head:has(> :only-child) { grid-template-columns: 1fr; }
 .service-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
 .service { padding: 28px; min-height: 250px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.025); }
 .service svg { color: var(--copper); margin-bottom: 34px; }
@@ -114,9 +117,29 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 .login-card { border: 1px solid var(--line); border-radius: 8px; padding: 22px; background: rgba(255,255,255,0.04); }
 
 .workspace { min-height: 100svh; display: grid; grid-template-columns: 250px 1fr; background: #eef0ea; color: #111512; }
-.rail { background: #0d120f; color: #fff; padding: 28px 20px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 0; height: 100svh; }
+.rail { background: #0d120f; color: #fff; padding: 24px 18px; display: flex; flex-direction: column; gap: 20px; position: sticky; top: 0; height: 100svh; overflow-y: auto; }
 .rail span { color: var(--muted); }
+
+.rail-head { display: flex; flex-direction: column; gap: 2px; }
+.rail-title { font-size: 17px; font-weight: 800; line-height: 1.2; }
+.rail-user { font-size: 13px; color: var(--muted); }
+
+.rail-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .rail button { background: rgba(255,255,255,0.08); color: #fff; padding: 0 12px; justify-content: flex-start; }
+.rail-nav button { background: transparent; color: #d7dbd3; width: 100%; min-height: 42px; font-size: 14px; font-weight: 600; }
+.rail-nav button:hover { background: rgba(255,255,255,0.07); color: #fff; }
+.rail-nav button.active { background: var(--accent); color: #11170e; }
+
+.rail-program { display: flex; flex-direction: column; gap: 8px; }
+.rail-program-label { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.05em; }
+.rail-program-card { background: rgba(255,255,255,0.04); padding: 12px; border-radius: 8px; font-size: 13px; border: 1px solid var(--line); }
+
+.rail-actions { display: flex; flex-direction: column; gap: 8px; }
+
+.student-sections { display: grid; gap: 24px; max-width: 860px; }
+
+.modal-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.6); display: grid; place-items: center; padding: 16px; }
+.modal-card { background: #fff; border: 1px solid #d8dbd1; color: #111512; border-radius: 8px; padding: clamp(20px, 4vw, 32px); width: min(500px, 100%); max-height: 92vh; overflow-y: auto; display: grid; gap: 16px; }
 .work-main { padding: 36px; min-height: 100vh; }
 .workspace-head { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 26px; }
 .workspace h1 { font-size: clamp(34px, 5vw, 58px); color: #111512; }
@@ -158,10 +181,15 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
   h1 { font-size: 58px; }
   .section-head, .feature-row, .workshops, .quote-section, .hub-hero, .enroll-layout, .auth-screen, .workspace, .student-grid { grid-template-columns: 1fr; }
   .service-grid, .hub-flow, .metric-row { grid-template-columns: 1fr 1fr; }
-  /* Sidebar becomes a compact, horizontally-wrapping top bar instead of a tall column */
-  .rail { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding: 16px; }
-  .rail > div { flex-direction: row !important; flex-wrap: wrap; width: 100%; }
-  .rail > div button { flex: 1 1 auto; }
+  /* Sidebar collapses into a clean top app-bar: a title row, a horizontally
+     scrollable tab strip, then the action buttons — no more wrapping jumble. */
+  .rail { position: static; height: auto; flex-direction: column; gap: 14px; padding: 16px; overflow-y: visible; }
+  .rail-nav { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: 8px; flex: none; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+  .rail-nav::-webkit-scrollbar { display: none; }
+  .rail-nav button { flex: 0 0 auto; width: auto; white-space: nowrap; min-height: 40px; }
+  .rail-actions { flex-direction: row; }
+  .rail-actions button { flex: 1; justify-content: center; }
+  .student-sections { max-width: none; }
   /* !important beats the inline grid-template-columns set on these rows so they
      actually stack on mobile instead of crushing the dropdowns to one character */
   .student-grid { grid-template-columns: 1fr !important; }
