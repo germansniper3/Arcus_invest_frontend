@@ -13,7 +13,7 @@
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; min-width: 320px; }
+body { margin: 0; min-width: 320px; overflow-x: clip; }
 a { color: inherit; text-decoration: none; }
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
@@ -113,18 +113,44 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 .tier span { color: var(--muted); margin-top: 8px; }
 .tier.active { border-color: var(--accent); background: rgba(154,211,91,0.08); }
 
-.auth-screen { min-height: 100svh; display: grid; grid-template-columns: 1fr 420px; gap: 48px; align-items: center; padding: 120px clamp(20px, 5vw, 72px); background: radial-gradient(circle at 20% 20%, rgba(201,135,69,0.18), transparent 30%), #0b0d0c; }
+.auth-screen { min-height: 100svh; display: grid; grid-template-columns: 1.05fr 0.95fr; background: #0b0d0c; }
 .login-card { border: 1px solid var(--line); border-radius: 8px; padding: 22px; background: rgba(255,255,255,0.04); }
 
-.workspace { min-height: 100svh; display: grid; grid-template-columns: 250px 1fr; background: #eef0ea; color: #111512; }
-.rail { background: #0d120f; color: #fff; padding: 24px 18px; display: flex; flex-direction: column; gap: 20px; position: sticky; top: 0; height: 100svh; overflow-y: auto; }
+/* Two-panel auth layout: brand image + copy | credential card */
+.auth-visual { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; gap: 32px; padding: 40px clamp(28px, 4vw, 64px); }
+.auth-visual-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(0.9) contrast(1.05); }
+.auth-visual-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4,7,5,0.5), rgba(4,7,5,0.76) 55%, rgba(4,7,5,0.94)); }
+.auth-visual > * { position: relative; z-index: 1; }
+.auth-brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; align-self: flex-start; }
+.auth-brand img { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 8px; padding: 4px; }
+.auth-visual-copy { max-width: 460px; }
+.auth-visual-copy h1 { font-size: clamp(30px, 3.2vw, 46px); line-height: 1.06; margin: 12px 0 16px; }
+.auth-visual-copy p:not(.eyebrow) { color: #d3d7cd; font-size: 16px; line-height: 1.6; }
+.auth-points { display: grid; gap: 12px; margin: 26px 0 0; padding: 0; }
+.auth-points li { display: flex; gap: 10px; align-items: flex-start; color: #e7ebe0; font-size: 14px; list-style: none; }
+.auth-points svg { color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+
+.auth-panel { display: flex; align-items: center; justify-content: center; padding: 48px clamp(20px, 4vw, 56px); }
+.auth-card { width: 100%; max-width: 384px; display: grid; gap: 18px; }
+.auth-card h2 { font-size: 27px; margin: 0; }
+.auth-card .sub { color: var(--muted); font-size: 14px; margin: 6px 0 0; line-height: 1.5; }
+.auth-field { position: relative; }
+.auth-field svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #8a908a; pointer-events: none; }
+.auth-field input { padding-left: 42px; min-height: 50px; }
+.auth-card .primary { min-height: 50px; width: 100%; font-size: 15px; }
+.auth-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.auth-back { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.auth-back:hover { color: #fff; }
+
+.workspace { min-height: 100svh; display: grid; grid-template-columns: 250px 1fr; background: #eef0ea; color: #111512; max-width: 100%; overflow-x: clip; }
+.rail { background: #0d120f; color: #fff; padding: 24px 18px; display: flex; flex-direction: column; gap: 20px; position: sticky; top: 0; height: 100svh; overflow-y: auto; min-width: 0; }
 .rail span { color: var(--muted); }
 
 .rail-head { display: flex; flex-direction: column; gap: 2px; }
 .rail-title { font-size: 17px; font-weight: 800; line-height: 1.2; }
 .rail-user { font-size: 13px; color: var(--muted); }
 
-.rail-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.rail-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 .rail button { background: rgba(255,255,255,0.08); color: #fff; padding: 0 12px; justify-content: flex-start; }
 .rail-nav button { background: transparent; color: #d7dbd3; width: 100%; min-height: 42px; font-size: 14px; font-weight: 600; }
 .rail-nav button:hover { background: rgba(255,255,255,0.07); color: #fff; }
@@ -140,7 +166,7 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 
 .modal-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.6); display: grid; place-items: center; padding: 16px; }
 .modal-card { background: #fff; border: 1px solid #d8dbd1; color: #111512; border-radius: 8px; padding: clamp(20px, 4vw, 32px); width: min(500px, 100%); max-height: 92vh; overflow-y: auto; display: grid; gap: 16px; }
-.work-main { padding: 36px; min-height: 100vh; }
+.work-main { padding: 36px; min-height: 100vh; min-width: 0; max-width: 100%; }
 .workspace-head { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 26px; }
 .workspace h1 { font-size: clamp(34px, 5vw, 58px); color: #111512; }
 .workspace p { color: #5a625d; }
@@ -180,6 +206,13 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
   .nav nav { flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
   h1 { font-size: 58px; }
   .section-head, .feature-row, .workshops, .quote-section, .hub-hero, .enroll-layout, .auth-screen, .workspace, .student-grid { grid-template-columns: 1fr; }
+  /* Auth: on mobile the full-bleed photo can't cleanly cover the taller stacked
+     panel, so swap it for a dark gradient and keep the brand + copy legible. */
+  .auth-visual { min-height: auto; gap: 20px; padding: 32px clamp(20px, 6vw, 40px); background: radial-gradient(circle at 25% 0%, rgba(201,135,69,0.16), transparent 42%), #0e120f; }
+  .auth-visual-img, .auth-visual-shade { display: none; }
+  .auth-visual-copy h1 { font-size: 30px; }
+  .auth-points { display: none; }
+  .auth-panel { padding: 28px 20px 48px; }
   .service-grid, .hub-flow, .metric-row { grid-template-columns: 1fr 1fr; }
   /* Sidebar collapses into a clean top app-bar: a title row, a horizontally
      scrollable tab strip, then the action buttons — no more wrapping jumble. */
