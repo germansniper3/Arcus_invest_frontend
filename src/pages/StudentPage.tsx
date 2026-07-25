@@ -1,11 +1,19 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { LogOut, Rocket, CheckSquare, Square, MessageSquare, Send, Clock, FileText, CalendarClock, Plus, X, UploadCloud, Download } from 'lucide-react';
+import { LogOut, Rocket, CheckSquare, Square, MessageSquare, Send, Clock, FileText, CalendarClock, Plus, X, UploadCloud, Download, Lock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { Enrollment, StudentProfile, CapstoneMilestone, CapstoneComment, ProgressReport, ExtensionRequest, Submission } from '../types';
 
 type Section = 'overview' | 'milestones' | 'discussion' | 'reports' | 'extensions' | 'submissions';
+
+// Gated submission pipeline: steps unlock in order, each after the previous is
+// mentor-approved. Keys must match the backend's submissionStageOrder.
+const SUBMISSION_STEPS: { key: string; label: string; desc: string }[] = [
+  { key: 'proposal', label: 'Proposal', desc: 'Submit your capstone project brief for mentor review.' },
+  { key: 'report', label: 'Report', desc: 'Submit your progress / design report.' },
+  { key: 'final', label: 'Final', desc: 'Submit your final deliverable.' },
+];
 
 const SECTION_TITLES: Record<Section, string> = {
   overview: 'Capstone Overview',
@@ -40,8 +48,10 @@ export function StudentPage() {
   const [submittingExtension, setSubmittingExtension] = useState(false);
 
   // Submission upload form state
-  const [subForm, setSubForm] = useState<{ title: string; kind: string; file: File | null }>({ title: '', kind: 'proposal', file: null });
+  const [subForm, setSubForm] = useState<{ title: string; file: File | null }>({ title: '', file: null });
   const [submittingFile, setSubmittingFile] = useState(false);
+  const [uploadingKind, setUploadingKind] = useState('');
+  const [fileKey, setFileKey] = useState(0); // remounts the file input to clear it after upload
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   async function loadDashboard() {
@@ -185,12 +195,8 @@ export function StudentPage() {
     }
   }
 
-  async function submitSubmission(e: FormEvent) {
+  async function submitStep(e: FormEvent, kind: string, label: string) {
     e.preventDefault();
-    if (!subForm.title.trim()) {
-      toast.error('Please provide a title');
-      return;
-    }
     if (!subForm.file) {
       toast.error('Please choose a file to upload');
       return;
@@ -200,16 +206,19 @@ export function StudentPage() {
       return;
     }
     setSubmittingFile(true);
+    setUploadingKind(kind);
     try {
-      await api.submitSubmission({ title: subForm.title, kind: subForm.kind, file: subForm.file });
-      toast.success('Submission uploaded');
-      setSubForm({ title: '', kind: 'proposal', file: null });
+      await api.submitSubmission({ title: subForm.title.trim() || label, kind, file: subForm.file });
+      toast.success(`${label} submitted for mentor review`);
+      setSubForm({ title: '', file: null });
+      setFileKey((k) => k + 1);
       const data = await api.studentDashboard();
       setSubmissions(data.submissions || []);
     } catch (err: any) {
       toast.error(err.message || 'Failed to upload submission');
     } finally {
       setSubmittingFile(false);
+      setUploadingKind('');
     }
   }
 
@@ -628,94 +637,100 @@ export function StudentPage() {
 
         {activeSection === 'submissions' && (
           <div className="student-sections">
-        {/* Submissions Panel */}
-        <div className="panel" style={{ padding: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-            <UploadCloud size={22} style={{ color: 'var(--accent)' }} />
-            <h2 style={{ margin: 0, fontSize: '22px' }}>Submissions</h2>
-          </div>
-          <p style={{ fontSize: '13px', marginBottom: '20px' }}>Upload deliverables (proposals, reports, final submissions) for mentor review. Maximum file size 15 MB.</p>
-
-          <form onSubmit={submitSubmission} style={{ display: 'grid', gap: '12px', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--line)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d', display: 'block', marginBottom: '4px' }}>Title</label>
-                <input
-                  required
-                  placeholder="e.g. Milestone 2 Draft Report"
-                  value={subForm.title}
-                  onChange={(e) => setSubForm({ ...subForm, title: e.target.value })}
-                  style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
-                />
+            <div className="panel" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                <UploadCloud size={22} style={{ color: 'var(--accent)' }} />
+                <h2 style={{ margin: 0, fontSize: '22px' }}>Submission Pipeline</h2>
               </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d', display: 'block', marginBottom: '4px' }}>Kind</label>
-                <select
-                  value={subForm.kind}
-                  onChange={(e) => setSubForm({ ...subForm, kind: e.target.value })}
-                  style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
-                >
-                  <option value="proposal">Proposal</option>
-                  <option value="report">Report</option>
-                  <option value="final">Final</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', color: '#5a625d', display: 'block', marginBottom: '4px' }}>File (max 15 MB)</label>
-              <input
-                required
-                type="file"
-                onChange={(e) => setSubForm({ ...subForm, file: e.target.files?.[0] ?? null })}
-                style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1', padding: '8px' }}
-              />
-            </div>
-            <button type="submit" disabled={submittingFile} className="primary" style={{ width: '100%', minHeight: '40px' }}>
-              {submittingFile ? 'Uploading...' : 'Upload Submission'}
-            </button>
-          </form>
+              <p style={{ fontSize: '13px', marginBottom: '20px' }}>Work through the steps in order. Each step unlocks only after a mentor approves the previous one. Max file size 15 MB.</p>
 
-          <div style={{ display: 'grid', gap: '12px', maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
-            {submissions.length === 0 ? (
-              <p style={{ color: '#5a625d', fontSize: '14px', padding: '12px', background: '#f7f8f3', borderRadius: '6px', textAlign: 'center' }}>No submissions yet.</p>
-            ) : (
-              submissions.map((s) => (
-                <div key={s.id} style={{ padding: '14px 16px', background: '#f7f8f3', border: '1px solid #d8dbd1', borderRadius: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'baseline', marginBottom: '8px' }}>
-                    <strong style={{ color: '#111512', fontSize: '14px' }}>{s.title}</strong>
-                    <span style={{
-                      fontSize: '11px',
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      background: s.status === 'accepted' ? '#e8f2dc' : s.status === 'revise' ? '#fff2e2' : '#f0f0f0',
-                      color: s.status === 'accepted' ? '#35520f' : s.status === 'revise' ? '#c98745' : '#555',
-                      fontWeight: 'bold',
-                      textTransform: 'uppercase'
-                    }}>{s.status}</span>
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#5a625d', marginBottom: '8px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <span style={{ textTransform: 'capitalize' }}>{s.kind}</span>
-                    <span>{s.file_name}</span>
-                    <span>{formatFileSize(s.size)}</span>
-                  </div>
-                  {s.review_note && (
-                    <div style={{ background: '#fff', borderLeft: '3px solid var(--copper)', padding: '8px 12px', borderRadius: '0 4px 4px 0', fontSize: '12px', color: '#c98745', marginBottom: '8px' }}>
-                      <strong>Reviewer Note:</strong> {s.review_note}
+              <div style={{ display: 'grid', gap: '14px' }}>
+                {(SUBMISSION_STEPS).map((step, i) => {
+                  const mine = submissions
+                    .filter((s) => s.kind === step.key)
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                  const latest = mine[0];
+                  const accepted = mine.some((s) => s.status === 'accepted');
+                  const prevAccepted = i === 0 || submissions.some((s) => s.kind === SUBMISSION_STEPS[i - 1].key && s.status === 'accepted');
+                  const unlocked = i === 0 || prevAccepted;
+                  const active = unlocked && !accepted;
+                  const state: 'done' | 'active' | 'locked' = accepted ? 'done' : unlocked ? 'active' : 'locked';
+                  const accent = state === 'done' ? '#5f7c29' : state === 'active' ? '#2a5788' : '#b0b4ab';
+
+                  return (
+                    <div key={step.key} style={{ border: `1px solid ${state === 'locked' ? '#e2e4dd' : '#d8dbd1'}`, borderLeft: `4px solid ${accent}`, borderRadius: '8px', padding: '16px 18px', background: state === 'locked' ? '#f3f4f0' : '#fff', opacity: state === 'locked' ? 0.75 : 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', display: 'grid', placeItems: 'center', background: state === 'done' ? '#e8f2dc' : state === 'active' ? '#e2ecf8' : '#e7e9e3', color: accent, flexShrink: 0 }}>
+                          {state === 'done' ? <CheckCircle2 size={17} /> : state === 'locked' ? <Lock size={15} /> : i + 1}
+                        </div>
+                        <strong style={{ color: '#111512', fontSize: '16px' }}>Step {i + 1}: {step.label}</strong>
+                        {latest && (
+                          <span style={{
+                            marginLeft: 'auto', fontSize: '11px', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold', textTransform: 'uppercase',
+                            background: latest.status === 'accepted' ? '#e8f2dc' : latest.status === 'revise' ? '#fff2e2' : '#e2ecf8',
+                            color: latest.status === 'accepted' ? '#35520f' : latest.status === 'revise' ? '#c98745' : '#2a5788',
+                          }}>{latest.status === 'submitted' ? 'awaiting review' : latest.status}</span>
+                        )}
+                      </div>
+                      <p style={{ fontSize: '13px', color: '#5a625d', margin: '0 0 12px', paddingLeft: '38px' }}>{step.desc}</p>
+
+                      <div style={{ paddingLeft: '38px' }}>
+                        {state === 'locked' && (
+                          <p style={{ fontSize: '12px', color: '#8a908a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Lock size={12} /> Unlocks after Step {i} ({SUBMISSION_STEPS[i - 1].label}) is approved.
+                          </p>
+                        )}
+
+                        {latest && (
+                          <div style={{ background: '#f7f8f3', border: '1px solid #e2e4dd', borderRadius: '6px', padding: '10px 12px', marginBottom: state === 'active' ? '12px' : 0 }}>
+                            <div style={{ fontSize: '12px', color: '#5a625d', display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                              <span>{latest.file_name}</span>
+                              <span>{formatFileSize(latest.size)}</span>
+                            </div>
+                            {latest.review_note && (
+                              <div style={{ background: '#fff', borderLeft: '3px solid var(--copper)', padding: '8px 12px', borderRadius: '0 4px 4px 0', fontSize: '12px', color: '#c98745', marginBottom: '8px' }}>
+                                <strong>Mentor Note:</strong> {latest.review_note}
+                              </div>
+                            )}
+                            <button
+                              onClick={() => handleDownloadSubmission(latest)}
+                              disabled={downloadingId === latest.id}
+                              style={{ background: '#eef0ea', color: '#111512', minHeight: '30px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                            >
+                              <Download size={13} /> {downloadingId === latest.id ? 'Downloading...' : 'Download'}
+                            </button>
+                          </div>
+                        )}
+
+                        {state === 'active' && (
+                          <form onSubmit={(e) => submitStep(e, step.key, step.label)} style={{ display: 'grid', gap: '10px', marginTop: latest ? '4px' : 0 }}>
+                            {latest && latest.status === 'revise' && (
+                              <p style={{ fontSize: '12px', color: '#c98745', margin: 0 }}>Revision requested — upload an updated file below.</p>
+                            )}
+                            <input
+                              placeholder={`Title (optional — defaults to "${step.label}")`}
+                              value={subForm.title}
+                              onChange={(e) => setSubForm({ ...subForm, title: e.target.value })}
+                              style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
+                            />
+                            <input
+                              key={fileKey}
+                              required
+                              type="file"
+                              onChange={(e) => setSubForm({ ...subForm, file: e.target.files?.[0] ?? null })}
+                              style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1', padding: '8px' }}
+                            />
+                            <button type="submit" disabled={submittingFile} className="primary" style={{ width: '100%', minHeight: '40px' }}>
+                              {submittingFile && uploadingKind === step.key ? 'Uploading...' : latest ? `Re-upload ${step.label}` : `Submit ${step.label}`}
+                            </button>
+                          </form>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  <button
-                    onClick={() => handleDownloadSubmission(s)}
-                    disabled={downloadingId === s.id}
-                    style={{ background: '#eef0ea', color: '#111512', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                  >
-                    <Download size={13} /> {downloadingId === s.id ? 'Downloading...' : 'Download'}
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
       </section>
