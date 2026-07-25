@@ -144,6 +144,11 @@ export const api = {
   quotes: () => request<QuoteRequest[]>('/admin/quotes'),
   updateQuote: (id: string, body: { status?: string; admin_notes?: string }) =>
     request<QuoteRequest>(`/admin/quotes/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  convertQuoteToOpportunity: (id: string) =>
+    request<Opportunity>(`/admin/quotes/${id}/convert`, { method: 'POST' }),
+
+  // Admin — staff directory (pipeline owner picker)
+  adminListStaff: () => request<User[]>('/admin/staff'),
 
   // Admin — students (hub portal)
   listStudents: () => request<User[]>('/admin/students'),

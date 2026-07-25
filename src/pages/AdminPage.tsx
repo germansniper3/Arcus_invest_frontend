@@ -82,9 +82,12 @@ export function AdminPage() {
   // Pipeline (Opportunities) State
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [forecast, setForecast] = useState<PipelineForecast | null>(null);
+  const [staff, setStaff] = useState<User[]>([]);
   const [showOpportunityModal, setShowOpportunityModal] = useState(false);
-  const emptyOpportunity = { id: '', name: '', account_name: '', contact_name: '', contact_email: '', sector: '', stage: 'prospecting' as OpportunityStage, grade: 'bronze' as OpportunityGrade, deal_value: 0, probability: 10, expected_close_at: '', notes: '' };
+  const emptyOpportunity = { id: '', name: '', account_name: '', contact_name: '', contact_email: '', sector: '', stage: 'prospecting' as OpportunityStage, grade: 'bronze' as OpportunityGrade, deal_value: 0, probability: 10, owner_id: '', expected_close_at: '', notes: '' };
   const [opportunityForm, setOpportunityForm] = useState(emptyOpportunity);
+  const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+  const staffName = (id?: string | null) => (id ? staff.find((s) => s.id === id)?.full_name ?? 'Unknown' : '');
 
   async function loadData() {
     try {
@@ -107,12 +110,14 @@ export function AdminPage() {
         const nextProducts = await api.adminListProducts();
         setProducts(nextProducts);
       } else if (activeTab === 'pipeline') {
-        const [nextOpportunities, nextForecast] = await Promise.all([
+        const [nextOpportunities, nextForecast, nextStaff] = await Promise.all([
           api.adminListOpportunities(),
           api.adminPipelineForecast(),
+          api.adminListStaff(),
         ]);
         setOpportunities(nextOpportunities);
         setForecast(nextForecast);
+        setStaff(nextStaff);
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to load admin data');
@@ -163,6 +168,22 @@ export function AdminPage() {
       toast.success('Notes saved successfully');
     } catch (err: any) {
       toast.error(err.message || 'Failed to save notes');
+    }
+  }
+
+  async function convertQuote(item: QuoteRequest) {
+    if (item.status === 'converted') {
+      toast.info('This lead has already been converted.');
+      return;
+    }
+    if (!confirm(`Convert "${item.name}" into a pipeline opportunity?`)) return;
+    try {
+      await api.convertQuoteToOpportunity(item.id);
+      toast.success('Lead converted — opening the pipeline');
+      setSelectedQuote(null);
+      setActiveTab('pipeline');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to convert lead');
     }
   }
 
@@ -495,7 +516,7 @@ export function AdminPage() {
     setOpportunityForm({
       id: o.id, name: o.name, account_name: o.account_name, contact_name: o.contact_name,
       contact_email: o.contact_email, sector: o.sector, stage: o.stage, grade: o.grade,
-      deal_value: o.deal_value, probability: o.probability,
+      deal_value: o.deal_value, probability: o.probability, owner_id: o.owner_id ?? '',
       expected_close_at: o.expected_close_at ? o.expected_close_at.slice(0, 10) : '', notes: o.notes,
     });
     setShowOpportunityModal(true);
@@ -513,6 +534,7 @@ export function AdminPage() {
       grade: opportunityForm.grade,
       deal_value: Number(opportunityForm.deal_value) || 0,
       probability: Number(opportunityForm.probability),
+      owner_id: opportunityForm.owner_id || NIL_UUID, // nil UUID = unassign server-side
       expected_close_at: opportunityForm.expected_close_at ? new Date(opportunityForm.expected_close_at).toISOString() : null,
       notes: opportunityForm.notes,
     };
@@ -754,13 +776,22 @@ export function AdminPage() {
                         placeholder="Log contact attempts, meeting summaries, pricing proposals, or instructions on how to reach back..." 
                         style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1', minHeight: '100px', fontSize: '13px', width: '100%', padding: '10px', borderRadius: '4px', marginBottom: '12px' }}
                       />
-                      <button 
-                        onClick={() => saveQuoteNotes(selectedQuote)} 
-                        className="primary" 
-                        style={{ minHeight: '36px', fontSize: '12px', padding: '0 16px' }}
-                      >
-                        Save CRM Notes
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => saveQuoteNotes(selectedQuote)}
+                          className="primary"
+                          style={{ minHeight: '36px', fontSize: '12px', padding: '0 16px' }}
+                        >
+                          Save CRM Notes
+                        </button>
+                        <button
+                          onClick={() => convertQuote(selectedQuote)}
+                          disabled={selectedQuote.status === 'converted'}
+                          style={{ minHeight: '36px', fontSize: '12px', padding: '0 16px', background: selectedQuote.status === 'converted' ? '#eef0ea' : '#111512', color: selectedQuote.status === 'converted' ? '#8a908a' : '#fff', border: 0, borderRadius: '8px', cursor: selectedQuote.status === 'converted' ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <Target size={14} /> {selectedQuote.status === 'converted' ? 'Converted' : 'Convert to opportunity'}
+                        </button>
+                      </div>
                     </div>
                   </article>
                 </div>
@@ -1446,6 +1477,9 @@ export function AdminPage() {
                             {!isTerminal && (
                               <div style={{ fontSize: '11px', color: '#8a908a' }}>Weighted {ZMW(o.weighted_value)}</div>
                             )}
+                            <div style={{ fontSize: '11px', color: o.owner_id ? '#37607a' : '#b0b4ab' }}>
+                              {o.owner_id ? staffName(o.owner_id) : 'Unassigned'}
+                            </div>
                             <select
                               value={o.stage}
                               onClick={(e) => e.stopPropagation()}
@@ -1679,9 +1713,18 @@ export function AdminPage() {
                   <input type="number" min="0" max="100" value={opportunityForm.probability} onChange={(e) => setOpportunityForm({ ...opportunityForm, probability: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
                 </div>
               </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Expected Close Date</label>
-                <input type="date" value={opportunityForm.expected_close_at} onChange={(e) => setOpportunityForm({ ...opportunityForm, expected_close_at: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Owner</label>
+                  <select value={opportunityForm.owner_id} onChange={(e) => setOpportunityForm({ ...opportunityForm, owner_id: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }}>
+                    <option value="">Unassigned</option>
+                    {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Expected Close Date</label>
+                  <input type="date" value={opportunityForm.expected_close_at} onChange={(e) => setOpportunityForm({ ...opportunityForm, expected_close_at: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
               </div>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Notes</label>
