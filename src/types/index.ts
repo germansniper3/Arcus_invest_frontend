@@ -162,3 +162,46 @@ export interface Product {
   specs: string;
   is_published: boolean;
 }
+
+export type OpportunityStage =
+  | 'prospecting' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
+
+export type OpportunityGrade = 'bronze' | 'silver' | 'gold' | 'platinum';
+
+export interface Opportunity {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  name: string;
+  account_name: string;
+  contact_name: string;
+  contact_email: string;
+  sector: string;
+  stage: OpportunityStage;
+  grade: OpportunityGrade;
+  deal_value: number;
+  probability: number;
+  weighted_value: number;
+  owner_id?: string | null;
+  source_quote_id?: string | null;
+  expected_close_at?: string | null;
+  notes: string;
+}
+
+export interface PipelineStageSummary {
+  stage: OpportunityStage;
+  count: number;
+  value: number;
+  weighted_value: number;
+}
+
+export interface PipelineForecast {
+  open_value: number;
+  weighted_forecast: number;
+  won_value: number;
+  won_count: number;
+  lost_count: number;
+  win_rate: number;
+  total_count: number;
+  stages: PipelineStageSummary[];
+}

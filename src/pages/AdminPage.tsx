@@ -3,14 +3,28 @@ import {
   LogOut, RefreshCcw, UserPlus, FileText, Calendar,
   Send, CheckSquare, Plus, Edit2, Trash2,
   Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
-  UploadCloud, Download
+  UploadCloud, Download, Target
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityStage, OpportunityGrade, PipelineForecast } from '../types';
 
-type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products';
+type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline';
+
+// Pipeline stage + grade display metadata (labels, order, colours).
+const STAGE_ORDER: OpportunityStage[] = ['prospecting', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
+const STAGE_LABELS: Record<OpportunityStage, string> = {
+  prospecting: 'Prospecting', qualified: 'Qualified', proposal: 'Proposal',
+  negotiation: 'Negotiation', won: 'Won', lost: 'Lost',
+};
+const GRADE_STYLES: Record<OpportunityGrade, { bg: string; fg: string; label: string }> = {
+  bronze: { bg: '#f0e0d0', fg: '#8a5a2b', label: 'Bronze' },
+  silver: { bg: '#e6e8ea', fg: '#5a6572', label: 'Silver' },
+  gold: { bg: '#f7edc8', fg: '#8a6d1a', label: 'Gold' },
+  platinum: { bg: '#e2ecf2', fg: '#37607a', label: 'Platinum' },
+};
+const ZMW = (n: number) => `${Math.round(n).toLocaleString()} ZMW`;
 
 export function AdminPage() {
   const { user, logout } = useAuth();
@@ -65,6 +79,13 @@ export function AdminPage() {
   const [showProductModal, setShowProductModal] = useState(false);
   const [uploadingProductImage, setUploadingProductImage] = useState(false);
 
+  // Pipeline (Opportunities) State
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [forecast, setForecast] = useState<PipelineForecast | null>(null);
+  const [showOpportunityModal, setShowOpportunityModal] = useState(false);
+  const emptyOpportunity = { id: '', name: '', account_name: '', contact_name: '', contact_email: '', sector: '', stage: 'prospecting' as OpportunityStage, grade: 'bronze' as OpportunityGrade, deal_value: 0, probability: 10, expected_close_at: '', notes: '' };
+  const [opportunityForm, setOpportunityForm] = useState(emptyOpportunity);
+
   async function loadData() {
     try {
       const nextMetrics = await api.adminMetrics();
@@ -85,9 +106,29 @@ export function AdminPage() {
       } else if (activeTab === 'products') {
         const nextProducts = await api.adminListProducts();
         setProducts(nextProducts);
+      } else if (activeTab === 'pipeline') {
+        const [nextOpportunities, nextForecast] = await Promise.all([
+          api.adminListOpportunities(),
+          api.adminPipelineForecast(),
+        ]);
+        setOpportunities(nextOpportunities);
+        setForecast(nextForecast);
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to load admin data');
+    }
+  }
+
+  async function reloadPipeline() {
+    try {
+      const [nextOpportunities, nextForecast] = await Promise.all([
+        api.adminListOpportunities(),
+        api.adminPipelineForecast(),
+      ]);
+      setOpportunities(nextOpportunities);
+      setForecast(nextForecast);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to refresh pipeline');
     }
   }
 
@@ -444,6 +485,75 @@ export function AdminPage() {
     }
   }
 
+  // --- Opportunity (Pipeline) Handlers ---
+  function openCreateOpportunityModal() {
+    setOpportunityForm(emptyOpportunity);
+    setShowOpportunityModal(true);
+  }
+
+  function openEditOpportunityModal(o: Opportunity) {
+    setOpportunityForm({
+      id: o.id, name: o.name, account_name: o.account_name, contact_name: o.contact_name,
+      contact_email: o.contact_email, sector: o.sector, stage: o.stage, grade: o.grade,
+      deal_value: o.deal_value, probability: o.probability,
+      expected_close_at: o.expected_close_at ? o.expected_close_at.slice(0, 10) : '', notes: o.notes,
+    });
+    setShowOpportunityModal(true);
+  }
+
+  async function saveOpportunity(e: React.FormEvent) {
+    e.preventDefault();
+    const payload: Partial<Opportunity> = {
+      name: opportunityForm.name,
+      account_name: opportunityForm.account_name,
+      contact_name: opportunityForm.contact_name,
+      contact_email: opportunityForm.contact_email,
+      sector: opportunityForm.sector,
+      stage: opportunityForm.stage,
+      grade: opportunityForm.grade,
+      deal_value: Number(opportunityForm.deal_value) || 0,
+      probability: Number(opportunityForm.probability),
+      expected_close_at: opportunityForm.expected_close_at ? new Date(opportunityForm.expected_close_at).toISOString() : null,
+      notes: opportunityForm.notes,
+    };
+    try {
+      if (opportunityForm.id) {
+        await api.adminUpdateOpportunity(opportunityForm.id, payload);
+        toast.success('Opportunity updated');
+      } else {
+        await api.adminCreateOpportunity(payload);
+        toast.success('Opportunity created');
+      }
+      setShowOpportunityModal(false);
+      reloadPipeline();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save opportunity');
+    }
+  }
+
+  // Fast pipeline movement: change stage inline (probability re-seeds server-side).
+  async function moveOpportunityStage(o: Opportunity, stage: OpportunityStage) {
+    if (o.stage === stage) return;
+    try {
+      await api.adminUpdateOpportunity(o.id, { stage });
+      reloadPipeline();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to move opportunity');
+    }
+  }
+
+  async function deleteOpportunity(id: string) {
+    if (!confirm('Delete this opportunity? This cannot be undone.')) return;
+    try {
+      await api.adminDeleteOpportunity(id);
+      toast.success('Opportunity deleted');
+      setShowOpportunityModal(false);
+      reloadPipeline();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete opportunity');
+    }
+  }
+
   return (
     <main className="workspace">
       <aside className="rail">
@@ -455,6 +565,7 @@ export function AdminPage() {
         <nav className="rail-nav">
           {([
             ['overview', 'Overview', Settings],
+            ['pipeline', 'Sales Pipeline', Target],
             ['enrollments', 'Enrollments', UserPlus],
             ['students', 'Students Portal', GraduationCap],
             ['events', 'Events Manager', Calendar],
@@ -482,20 +593,35 @@ export function AdminPage() {
             <p className="eyebrow" style={{ textTransform: 'uppercase' }}>Management Area</p>
             <h1>
               {activeTab === 'overview' && 'Arcus Investments Dashboard'}
+              {activeTab === 'pipeline' && 'Sales Pipeline & Forecast'}
               {activeTab === 'enrollments' && 'Innovation Hub Intake'}
               {activeTab === 'students' && 'Student Capstone Milestones'}
               {activeTab === 'events' && 'Public Programs & Events'}
               {activeTab === 'products' && 'Product Inventory Manager'}
             </h1>
           </div>
+          {activeTab === 'pipeline' && (
+            <button onClick={openCreateOpportunityModal} className="primary" style={{ minHeight: '40px' }}>
+              <Plus size={16} /> New Opportunity
+            </button>
+          )}
         </div>
 
-        {/* Metrics Row */}
-        <div className="metric-row">
-          <article><span>{metrics.enrollments}</span><p>Total Enrollments</p></article>
-          <article><span>{metrics.students}</span><p>Active Students</p></article>
-          <article><span>{metrics.active_events}</span><p>Published Events</p></article>
-        </div>
+        {/* Metrics Row — pipeline shows forecast KPIs, everything else the hub metrics */}
+        {activeTab === 'pipeline' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px', marginBottom: '26px' }}>
+            <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{ZMW(forecast?.open_value ?? 0)}</span><p style={{ margin: '4px 0 0' }}>Open Pipeline</p></article>
+            <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900, color: '#5f7c29' }}>{ZMW(forecast?.weighted_forecast ?? 0)}</span><p style={{ margin: '4px 0 0' }}>Weighted Forecast</p></article>
+            <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{ZMW(forecast?.won_value ?? 0)}</span><p style={{ margin: '4px 0 0' }}>Won Value</p></article>
+            <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{Math.round(forecast?.win_rate ?? 0)}%</span><p style={{ margin: '4px 0 0' }}>Win Rate ({forecast?.won_count ?? 0}W / {forecast?.lost_count ?? 0}L)</p></article>
+          </div>
+        ) : (
+          <div className="metric-row">
+            <article><span>{metrics.enrollments}</span><p>Total Enrollments</p></article>
+            <article><span>{metrics.students}</span><p>Active Students</p></article>
+            <article><span>{metrics.active_events}</span><p>Published Events</p></article>
+          </div>
+        )}
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
@@ -1284,6 +1410,60 @@ export function AdminPage() {
             </section>
           </div>
         )}
+
+        {/* Pipeline Tab — stage board */}
+        {activeTab === 'pipeline' && (
+          <div style={{ display: 'flex', gap: '14px', overflowX: 'auto', paddingBottom: '8px', alignItems: 'flex-start' }}>
+            {STAGE_ORDER.map((stage) => {
+              const col = opportunities.filter((o) => o.stage === stage);
+              const colValue = col.reduce((sum, o) => sum + o.deal_value, 0);
+              const isTerminal = stage === 'won' || stage === 'lost';
+              return (
+                <div key={stage} style={{ flex: '0 0 260px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '2px 4px' }}>
+                    <strong style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.03em', color: stage === 'won' ? '#35520f' : stage === 'lost' ? '#a00' : '#111512' }}>
+                      {STAGE_LABELS[stage]} <span style={{ color: '#8a908a' }}>· {col.length}</span>
+                    </strong>
+                    <span style={{ fontSize: '11px', color: '#5a625d' }}>{ZMW(colValue)}</span>
+                  </div>
+                  <div style={{ display: 'grid', gap: '10px', background: '#e7eae2', borderRadius: '8px', padding: '10px', minHeight: '80px' }}>
+                    {col.length === 0 ? (
+                      <p style={{ fontSize: '12px', color: '#8a908a', textAlign: 'center', margin: '10px 0' }}>—</p>
+                    ) : (
+                      col.map((o) => {
+                        const grade = GRADE_STYLES[o.grade];
+                        return (
+                          <div key={o.id} onClick={() => openEditOpportunityModal(o)} style={{ background: '#fff', border: '1px solid #d6d8d0', borderRadius: '8px', padding: '12px', cursor: 'pointer', display: 'grid', gap: '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'flex-start' }}>
+                              <strong style={{ fontSize: '14px', color: '#111512', lineHeight: 1.25 }}>{o.name}</strong>
+                              <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: '10px', background: grade.bg, color: grade.fg }}>{grade.label}</span>
+                            </div>
+                            {o.account_name && <div style={{ fontSize: '12px', color: '#5a625d' }}>{o.account_name}{o.sector ? ` · ${o.sector}` : ''}</div>}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                              <strong style={{ fontSize: '14px', color: '#111512' }}>{ZMW(o.deal_value)}</strong>
+                              <span style={{ fontSize: '11px', color: '#5f7c29', fontWeight: 700 }}>{o.probability}%</span>
+                            </div>
+                            {!isTerminal && (
+                              <div style={{ fontSize: '11px', color: '#8a908a' }}>Weighted {ZMW(o.weighted_value)}</div>
+                            )}
+                            <select
+                              value={o.stage}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => moveOpportunityStage(o, e.target.value as OpportunityStage)}
+                              style={{ fontSize: '12px', color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1', padding: '6px 8px', minHeight: 0 }}
+                            >
+                              {STAGE_ORDER.map((s) => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
+                            </select>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* Create / Edit Event Modal */}
@@ -1429,6 +1609,97 @@ export function AdminPage() {
               <button type="submit" className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '12px' }}>
                 {productForm.id ? 'Save Changes' : 'Create Product'}
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create / Edit Opportunity Modal */}
+      {showOpportunityModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '22px' }}>{opportunityForm.id ? 'Edit Opportunity' : 'New Opportunity'}</h2>
+              <button onClick={() => setShowOpportunityModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <form onSubmit={saveOpportunity} style={{ display: 'grid', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Opportunity Name</label>
+                <input required placeholder="e.g. Data Centre migration — Phase 1" value={opportunityForm.name} onChange={(e) => setOpportunityForm({ ...opportunityForm, name: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Account / Company</label>
+                  <input value={opportunityForm.account_name} onChange={(e) => setOpportunityForm({ ...opportunityForm, account_name: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Sector</label>
+                  <input placeholder="e.g. Mining, Telecom" value={opportunityForm.sector} onChange={(e) => setOpportunityForm({ ...opportunityForm, sector: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Contact Name</label>
+                  <input value={opportunityForm.contact_name} onChange={(e) => setOpportunityForm({ ...opportunityForm, contact_name: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Contact Email</label>
+                  <input type="email" value={opportunityForm.contact_email} onChange={(e) => setOpportunityForm({ ...opportunityForm, contact_email: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Stage</label>
+                  <select
+                    value={opportunityForm.stage}
+                    onChange={(e) => {
+                      const stage = e.target.value as OpportunityStage;
+                      const defaults: Record<OpportunityStage, number> = { prospecting: 10, qualified: 30, proposal: 50, negotiation: 70, won: 100, lost: 0 };
+                      setOpportunityForm({ ...opportunityForm, stage, probability: defaults[stage] });
+                    }}
+                    style={{ color: '#111512', background: '#f7f8f3' }}
+                  >
+                    {STAGE_ORDER.map((s) => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Maturity Grade</label>
+                  <select value={opportunityForm.grade} onChange={(e) => setOpportunityForm({ ...opportunityForm, grade: e.target.value as OpportunityGrade })} style={{ color: '#111512', background: '#f7f8f3' }}>
+                    {(['bronze', 'silver', 'gold', 'platinum'] as OpportunityGrade[]).map((g) => <option key={g} value={g}>{GRADE_STYLES[g].label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Deal Value (ZMW)</label>
+                  <input type="number" min="0" value={opportunityForm.deal_value} onChange={(e) => setOpportunityForm({ ...opportunityForm, deal_value: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Probability (%)</label>
+                  <input type="number" min="0" max="100" value={opportunityForm.probability} onChange={(e) => setOpportunityForm({ ...opportunityForm, probability: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Expected Close Date</label>
+                <input type="date" value={opportunityForm.expected_close_at} onChange={(e) => setOpportunityForm({ ...opportunityForm, expected_close_at: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Notes</label>
+                <textarea value={opportunityForm.notes} onChange={(e) => setOpportunityForm({ ...opportunityForm, notes: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '70px' }} />
+              </div>
+              <div style={{ fontSize: '12px', color: '#5a625d', background: '#eef0ea', borderRadius: '6px', padding: '10px 12px' }}>
+                Weighted value: <strong style={{ color: '#5f7c29' }}>{ZMW((Number(opportunityForm.deal_value) || 0) * Number(opportunityForm.probability) / 100)}</strong>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                <button type="submit" className="primary" style={{ flex: 1, minHeight: '44px' }}>
+                  {opportunityForm.id ? 'Save Changes' : 'Create Opportunity'}
+                </button>
+                {opportunityForm.id && (
+                  <button type="button" onClick={() => deleteOpportunity(opportunityForm.id)} style={{ background: '#fff', border: '1px solid #e2b4b4', color: '#a00', borderRadius: '8px', padding: '0 16px', minHeight: '44px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <Trash2 size={15} /> Delete
+                  </button>
+                )}
+              </div>
             </form>
           </div>
         </div>
