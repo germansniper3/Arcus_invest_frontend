@@ -3,14 +3,14 @@ import {
   LogOut, RefreshCcw, UserPlus, FileText, Calendar,
   Send, CheckSquare, Plus, Edit2, Trash2,
   Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
-  UploadCloud, Download, Target, Lock, CheckCircle2
+  UploadCloud, Download, Target, Lock, CheckCircle2, Building2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityStage, OpportunityGrade, PipelineForecast } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityStage, OpportunityGrade, PipelineForecast, AccountsIndex } from '../types';
 
-type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline';
+type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts';
 
 // Pipeline stage + grade display metadata (labels, order, colours).
 const STAGE_ORDER: OpportunityStage[] = ['prospecting', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
@@ -93,6 +93,9 @@ export function AdminPage() {
   const [showOpportunityModal, setShowOpportunityModal] = useState(false);
   const emptyOpportunity = { id: '', name: '', account_name: '', contact_name: '', contact_email: '', sector: '', stage: 'prospecting' as OpportunityStage, grade: 'bronze' as OpportunityGrade, deal_value: 0, probability: 10, owner_id: '', expected_close_at: '', notes: '' };
   const [opportunityForm, setOpportunityForm] = useState(emptyOpportunity);
+
+  // Accounts & VSI State
+  const [accountsIndex, setAccountsIndex] = useState<AccountsIndex | null>(null);
   const NIL_UUID = '00000000-0000-0000-0000-000000000000';
   const staffName = (id?: string | null) => (id ? staff.find((s) => s.id === id)?.full_name ?? 'Unknown' : '');
 
@@ -125,6 +128,8 @@ export function AdminPage() {
         setOpportunities(nextOpportunities);
         setForecast(nextForecast);
         setStaff(nextStaff);
+      } else if (activeTab === 'accounts') {
+        setAccountsIndex(await api.adminAccountsIndex());
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to load admin data');
@@ -595,6 +600,7 @@ export function AdminPage() {
           {([
             ['overview', 'Overview', Settings],
             ['pipeline', 'Sales Pipeline', Target],
+            ['accounts', 'Accounts & VSI', Building2],
             ['enrollments', 'Enrollments', UserPlus],
             ['students', 'Students Portal', GraduationCap],
             ['events', 'Events Manager', Calendar],
@@ -623,6 +629,7 @@ export function AdminPage() {
             <h1>
               {activeTab === 'overview' && 'Arcus Investments Dashboard'}
               {activeTab === 'pipeline' && 'Sales Pipeline & Forecast'}
+              {activeTab === 'accounts' && 'Accounts & Vertical Sales Index'}
               {activeTab === 'enrollments' && 'Innovation Hub Intake'}
               {activeTab === 'students' && 'Student Capstone Milestones'}
               {activeTab === 'events' && 'Public Programs & Events'}
@@ -644,7 +651,7 @@ export function AdminPage() {
             <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{ZMW(forecast?.won_value ?? 0)}</span><p style={{ margin: '4px 0 0' }}>Won Value</p></article>
             <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{Math.round(forecast?.win_rate ?? 0)}%</span><p style={{ margin: '4px 0 0' }}>Win Rate ({forecast?.won_count ?? 0}W / {forecast?.lost_count ?? 0}L)</p></article>
           </div>
-        ) : (
+        ) : activeTab === 'accounts' ? null : (
           <div className="metric-row">
             <article><span>{metrics.enrollments}</span><p>Total Enrollments</p></article>
             <article><span>{metrics.students}</span><p>Active Students</p></article>
@@ -1551,6 +1558,89 @@ export function AdminPage() {
             })}
           </div>
         )}
+
+        {/* Accounts & VSI Tab */}
+        {activeTab === 'accounts' && (() => {
+          const sectors = accountsIndex?.sectors ?? [];
+          const accountsList = accountsIndex?.accounts ?? [];
+          const maxSector = sectors[0]?.total_value || 1;
+          return (
+            <div style={{ display: 'grid', gap: '28px' }}>
+              {/* Vertical Sales Index — sectors ranked */}
+              <section className="data-section" style={{ marginTop: 0 }}>
+                <h2>Vertical Sales Index</h2>
+                <p style={{ marginBottom: '16px' }}>Revenue ranked by sector — closed-won plus live pipeline, derived from the opportunity pipeline.</p>
+                {sectors.length === 0 ? (
+                  <p className="empty">No sector data yet — set a sector on opportunities in the pipeline and they'll rank here.</p>
+                ) : (
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    {sectors.map((s, i) => (
+                      <article key={s.sector} className="panel" style={{ padding: '14px 16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px', marginBottom: '8px' }}>
+                          <strong style={{ color: '#111512', fontSize: '15px' }}><span style={{ color: '#8a908a' }}>#{i + 1}</span> {s.sector}</strong>
+                          <strong style={{ color: '#111512', fontSize: '15px' }}>{ZMW(s.total_value)}</strong>
+                        </div>
+                        <div style={{ height: '8px', background: '#e7eae2', borderRadius: '999px', overflow: 'hidden', marginBottom: '10px' }}>
+                          <div style={{ width: `${Math.max(2, (s.total_value / maxSector) * 100)}%`, height: '100%', background: 'var(--accent)' }} />
+                        </div>
+                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '12px', color: '#5a625d' }}>
+                          <span>{s.account_count} account{s.account_count === 1 ? '' : 's'}</span>
+                          <span>{s.deal_count} deal{s.deal_count === 1 ? '' : 's'}</span>
+                          <span>Won <strong style={{ color: '#35520f' }}>{ZMW(s.won_value)}</strong></span>
+                          <span>Open {ZMW(s.open_value)}</span>
+                          <span>Weighted {ZMW(s.weighted_value)}</span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Top accounts ranked */}
+              <section className="data-section" style={{ marginTop: 0 }}>
+                <h2>Top Accounts</h2>
+                <p style={{ marginBottom: '16px' }}>Accounts ranked by total value (open pipeline + closed-won).</p>
+                {accountsList.length === 0 ? (
+                  <p className="empty">No accounts yet — set an account name on opportunities in the pipeline.</p>
+                ) : (
+                  <div style={{ overflowX: 'auto', border: '1px solid #d6d8d0', borderRadius: '8px', background: '#fff' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px', fontSize: '13px', color: '#111512' }}>
+                      <thead>
+                        <tr style={{ textAlign: 'left', color: '#5a625d', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          <th style={{ padding: '12px 14px' }}>Account</th>
+                          <th style={{ padding: '12px 14px' }}>Sector</th>
+                          <th style={{ padding: '12px 14px' }}>Grade</th>
+                          <th style={{ padding: '12px 14px', textAlign: 'right' }}>Open deals</th>
+                          <th style={{ padding: '12px 14px', textAlign: 'right' }}>Weighted</th>
+                          <th style={{ padding: '12px 14px', textAlign: 'right' }}>Won</th>
+                          <th style={{ padding: '12px 14px', textAlign: 'right' }}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {accountsList.map((a) => {
+                          const grade = a.top_grade ? GRADE_STYLES[a.top_grade] : null;
+                          return (
+                            <tr key={a.account} style={{ borderTop: '1px solid #eceee7' }}>
+                              <td style={{ padding: '12px 14px', fontWeight: 700 }}>{a.account}</td>
+                              <td style={{ padding: '12px 14px', color: '#5a625d' }}>{a.sector}</td>
+                              <td style={{ padding: '12px 14px' }}>
+                                {grade ? <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: '10px', background: grade.bg, color: grade.fg }}>{grade.label}</span> : '—'}
+                              </td>
+                              <td style={{ padding: '12px 14px', textAlign: 'right' }}>{a.open_count}</td>
+                              <td style={{ padding: '12px 14px', textAlign: 'right', color: '#5f7c29' }}>{ZMW(a.weighted_value)}</td>
+                              <td style={{ padding: '12px 14px', textAlign: 'right' }}>{ZMW(a.won_value)}</td>
+                              <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800 }}>{ZMW(a.total_value)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            </div>
+          );
+        })()}
       </section>
 
       {/* Create / Edit Event Modal */}

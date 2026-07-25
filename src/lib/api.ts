@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, PipelineForecast } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, PipelineForecast, AccountsIndex } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -205,6 +205,8 @@ export const api = {
     request<Opportunity[]>(`/admin/opportunities${stage ? `?stage=${stage}` : ''}`),
   adminPipelineForecast: () =>
     request<PipelineForecast>('/admin/opportunities/forecast'),
+  adminAccountsIndex: () =>
+    request<AccountsIndex>('/admin/accounts'),
   adminCreateOpportunity: (body: Partial<Opportunity>) =>
     request<Opportunity>('/admin/opportunities', { method: 'POST', body: JSON.stringify(body) }),
   adminUpdateOpportunity: (id: string, body: Partial<Opportunity>) =>

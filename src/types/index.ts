@@ -195,6 +195,33 @@ export interface PipelineStageSummary {
   weighted_value: number;
 }
 
+export interface AccountRollup {
+  account: string;
+  sector: string;
+  deal_count: number;
+  open_count: number;
+  open_value: number;
+  weighted_value: number;
+  won_value: number;
+  total_value: number;
+  top_grade: OpportunityGrade | '';
+}
+
+export interface SectorRollup {
+  sector: string;
+  account_count: number;
+  deal_count: number;
+  open_value: number;
+  weighted_value: number;
+  won_value: number;
+  total_value: number;
+}
+
+export interface AccountsIndex {
+  accounts: AccountRollup[];
+  sectors: SectorRollup[];
+}
+
 export interface PipelineForecast {
   open_value: number;
   weighted_forecast: number;
