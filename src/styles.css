@@ -138,6 +138,12 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 .auth-field svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #8a908a; pointer-events: none; }
 .auth-field input { padding-left: 42px; min-height: 50px; }
 .auth-card .primary { min-height: 50px; width: 100%; font-size: 15px; }
+.auth-card h3 { font-size: 15px; margin: 0; }
+/* Labelled field inside an auth card (used by the onboarding claim form). */
+.auth-labelled { display: grid; gap: 6px; min-width: 0; }
+.auth-labelled label { font-size: 12px; color: #b8b7ad; }
+.auth-divider { border-top: 1px solid var(--line); padding-top: 16px; }
+.auth-divider p { font-size: 12px; color: #b8b7ad; margin: 4px 0 0; line-height: 1.5; }
 .auth-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
 .auth-back { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
 .auth-back:hover { color: #fff; }
