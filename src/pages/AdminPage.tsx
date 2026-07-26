@@ -3,14 +3,14 @@ import {
   LogOut, RefreshCcw, UserPlus, FileText, Calendar,
   Send, CheckSquare, Plus, Edit2, Trash2,
   Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
-  UploadCloud, Download, Target, Lock, CheckCircle2, Building2
+  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE } from '../lib/api';
+import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, PipelineForecast, AccountsIndex } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, PipelineForecast, AccountsIndex, Contract, ContractStatus } from '../types';
 
-type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts';
+type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts';
 
 // Pipeline stage + grade display metadata (labels, order, colours).
 const STAGE_ORDER: OpportunityStage[] = ['prospecting', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
@@ -40,6 +40,24 @@ const CONTACT_ROLES: { value: string; label: string }[] = [
   { value: 'procurement', label: 'Procurement' },
   { value: 'other', label: 'Other' },
 ];
+
+const CONTRACT_STATUSES: ContractStatus[] = ['draft', 'sent', 'signed', 'active', 'expired'];
+const CONTRACT_STATUS_STYLES: Record<ContractStatus, { bg: string; fg: string }> = {
+  draft: { bg: '#eceee7', fg: '#5a625d' },
+  sent: { bg: '#e2ecf8', fg: '#2a5788' },
+  signed: { bg: '#e7dff2', fg: '#5b3a8a' },
+  active: { bg: '#e8f2dc', fg: '#35520f' },
+  expired: { bg: '#ffe2e2', fg: '#a00' },
+};
+// Days until renewal that count as "due soon".
+const RENEWAL_SOON_DAYS = 30;
+function renewalState(iso?: string | null): 'none' | 'overdue' | 'soon' | 'ok' {
+  if (!iso) return 'none';
+  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+  if (days < 0) return 'overdue';
+  if (days <= RENEWAL_SOON_DAYS) return 'soon';
+  return 'ok';
+}
 
 // Gated submission pipeline (mirrors the student side + backend stage order).
 const SUBMISSION_STEPS: { key: string; label: string }[] = [
@@ -111,6 +129,15 @@ export function AdminPage() {
 
   // Accounts & VSI State
   const [accountsIndex, setAccountsIndex] = useState<AccountsIndex | null>(null);
+
+  // Contracts State
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [showContractModal, setShowContractModal] = useState(false);
+  const emptyContract = { id: '', account_name: '', opportunity_id: '', title: '', status: 'draft' as ContractStatus, value: 0, start_date: '', renewal_date: '', notes: '' };
+  const [contractForm, setContractForm] = useState(emptyContract);
+  const [contractFile, setContractFile] = useState<File | null>(null);
+  const [savingContract, setSavingContract] = useState(false);
+  const [downloadingContractId, setDownloadingContractId] = useState<string | null>(null);
   const NIL_UUID = '00000000-0000-0000-0000-000000000000';
   const staffName = (id?: string | null) => (id ? staff.find((s) => s.id === id)?.full_name ?? 'Unknown' : '');
 
@@ -145,6 +172,13 @@ export function AdminPage() {
         setStaff(nextStaff);
       } else if (activeTab === 'accounts') {
         setAccountsIndex(await api.adminAccountsIndex());
+      } else if (activeTab === 'contracts') {
+        const [nextContracts, nextOpportunities] = await Promise.all([
+          api.adminListContracts(),
+          api.adminListOpportunities(),
+        ]);
+        setContracts(nextContracts);
+        setOpportunities(nextOpportunities);
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to load admin data');
@@ -616,6 +650,83 @@ export function AdminPage() {
     }
   }
 
+  // --- Contract Handlers ---
+  function openCreateContractModal() {
+    setContractForm(emptyContract);
+    setContractFile(null);
+    setShowContractModal(true);
+  }
+  function openEditContractModal(ct: Contract) {
+    setContractForm({
+      id: ct.id, account_name: ct.account_name, opportunity_id: ct.opportunity_id ?? '', title: ct.title,
+      status: ct.status, value: ct.value,
+      start_date: ct.start_date ? ct.start_date.slice(0, 10) : '',
+      renewal_date: ct.renewal_date ? ct.renewal_date.slice(0, 10) : '',
+      notes: ct.notes,
+    });
+    setContractFile(null);
+    setShowContractModal(true);
+  }
+  async function saveContract(e: React.FormEvent) {
+    e.preventDefault();
+    if (contractFile && contractFile.size > MAX_SUBMISSION_FILE_SIZE) {
+      toast.error('File is too large. Maximum size is 15 MB.');
+      return;
+    }
+    setSavingContract(true);
+    const payload = {
+      account_name: contractForm.account_name,
+      opportunity_id: contractForm.opportunity_id || NIL_UUID,
+      title: contractForm.title,
+      status: contractForm.status,
+      value: Number(contractForm.value) || 0,
+      start_date: contractForm.start_date ? new Date(contractForm.start_date).toISOString() : null,
+      renewal_date: contractForm.renewal_date ? new Date(contractForm.renewal_date).toISOString() : null,
+      clear_renewal: !contractForm.renewal_date,
+      notes: contractForm.notes,
+    };
+    try {
+      let id = contractForm.id;
+      if (id) {
+        await api.adminUpdateContract(id, payload);
+      } else {
+        const created = await api.adminCreateContract(payload);
+        id = created.id;
+      }
+      if (contractFile) {
+        await api.uploadContractFile(id, contractFile);
+      }
+      toast.success(contractForm.id ? 'Contract updated' : 'Contract created');
+      setShowContractModal(false);
+      setContracts(await api.adminListContracts());
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save contract');
+    } finally {
+      setSavingContract(false);
+    }
+  }
+  async function deleteContract(id: string) {
+    if (!confirm('Delete this contract? This cannot be undone.')) return;
+    try {
+      await api.adminDeleteContract(id);
+      toast.success('Contract deleted');
+      setShowContractModal(false);
+      setContracts(await api.adminListContracts());
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete contract');
+    }
+  }
+  async function downloadContract(ct: Contract) {
+    setDownloadingContractId(ct.id);
+    try {
+      await api.downloadContract(ct.id, ct.file_name || 'contract');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to download contract');
+    } finally {
+      setDownloadingContractId(null);
+    }
+  }
+
   return (
     <main className="workspace">
       <aside className="rail">
@@ -629,6 +740,7 @@ export function AdminPage() {
             ['overview', 'Overview', Settings],
             ['pipeline', 'Sales Pipeline', Target],
             ['accounts', 'Accounts & VSI', Building2],
+            ['contracts', 'Contracts', ScrollText],
             ['enrollments', 'Enrollments', UserPlus],
             ['students', 'Students Portal', GraduationCap],
             ['events', 'Events Manager', Calendar],
@@ -658,6 +770,7 @@ export function AdminPage() {
               {activeTab === 'overview' && 'Arcus Investments Dashboard'}
               {activeTab === 'pipeline' && 'Sales Pipeline & Forecast'}
               {activeTab === 'accounts' && 'Accounts & Vertical Sales Index'}
+              {activeTab === 'contracts' && 'Contract Repository'}
               {activeTab === 'enrollments' && 'Innovation Hub Intake'}
               {activeTab === 'students' && 'Student Capstone Milestones'}
               {activeTab === 'events' && 'Public Programs & Events'}
@@ -667,6 +780,11 @@ export function AdminPage() {
           {activeTab === 'pipeline' && (
             <button onClick={openCreateOpportunityModal} className="primary" style={{ minHeight: '40px' }}>
               <Plus size={16} /> New Opportunity
+            </button>
+          )}
+          {activeTab === 'contracts' && (
+            <button onClick={openCreateContractModal} className="primary" style={{ minHeight: '40px' }}>
+              <Plus size={16} /> New Contract
             </button>
           )}
         </div>
@@ -679,7 +797,7 @@ export function AdminPage() {
             <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{ZMW(forecast?.won_value ?? 0)}</span><p style={{ margin: '4px 0 0' }}>Won Value</p></article>
             <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{Math.round(forecast?.win_rate ?? 0)}%</span><p style={{ margin: '4px 0 0' }}>Win Rate ({forecast?.won_count ?? 0}W / {forecast?.lost_count ?? 0}L)</p></article>
           </div>
-        ) : activeTab === 'accounts' ? null : (
+        ) : activeTab === 'accounts' || activeTab === 'contracts' ? null : (
           <div className="metric-row">
             <article><span>{metrics.enrollments}</span><p>Total Enrollments</p></article>
             <article><span>{metrics.students}</span><p>Active Students</p></article>
@@ -1681,6 +1799,53 @@ export function AdminPage() {
             </div>
           );
         })()}
+
+        {/* Contracts Tab */}
+        {activeTab === 'contracts' && (
+          <section className="data-section" style={{ marginTop: 0 }}>
+            <p style={{ marginBottom: '16px' }}>Store agreements, track renewals, and download signed documents. Renewals due within {RENEWAL_SOON_DAYS} days are flagged.</p>
+            {contracts.length === 0 ? (
+              <p className="empty">No contracts yet — click “New Contract” to add one.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: '12px' }}>
+                {contracts.map((ct) => {
+                  const rs = renewalState(ct.renewal_date);
+                  const st = CONTRACT_STATUS_STYLES[ct.status];
+                  return (
+                    <article key={ct.id} onClick={() => openEditContractModal(ct)} style={{ padding: '16px', background: '#fff', border: '1px solid #dfe1da', borderLeft: `4px solid ${rs === 'overdue' ? '#a00' : rs === 'soon' ? '#c98745' : '#d6d8d0'}`, borderRadius: '8px', cursor: 'pointer', display: 'grid', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
+                        <div>
+                          <strong style={{ fontSize: '15px', color: '#111512' }}>{ct.title}</strong>
+                          {ct.account_name && <div style={{ fontSize: '12px', color: '#5a625d', marginTop: '2px' }}>{ct.account_name}</div>}
+                        </div>
+                        <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '3px 8px', borderRadius: '10px', background: st.bg, color: st.fg }}>{ct.status}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '12px', color: '#5a625d', alignItems: 'center' }}>
+                        {ct.value > 0 && <span><strong style={{ color: '#111512' }}>{ZMW(ct.value)}</strong></span>}
+                        {ct.renewal_date && (
+                          <span style={{ color: rs === 'overdue' ? '#a00' : rs === 'soon' ? '#c98745' : '#5a625d', fontWeight: rs === 'ok' || rs === 'none' ? 400 : 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Clock size={12} /> Renews {new Date(ct.renewal_date).toLocaleDateString()}{rs === 'overdue' ? ' · overdue' : rs === 'soon' ? ' · due soon' : ''}
+                          </span>
+                        )}
+                        {ct.has_file ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); downloadContract(ct); }}
+                            disabled={downloadingContractId === ct.id}
+                            style={{ background: '#eef0ea', color: '#111512', minHeight: '28px', fontSize: '11px', padding: '0 10px', borderRadius: '4px', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <Download size={11} /> {downloadingContractId === ct.id ? 'Downloading...' : ct.file_name || 'Download'}
+                          </button>
+                        ) : (
+                          <span style={{ color: '#b0b4ab' }}>No file attached</span>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
       </section>
 
       {/* Create / Edit Event Modal */}
@@ -1957,6 +2122,83 @@ export function AdminPage() {
                 </button>
                 {opportunityForm.id && (
                   <button type="button" onClick={() => deleteOpportunity(opportunityForm.id)} style={{ background: '#fff', border: '1px solid #e2b4b4', color: '#a00', borderRadius: '8px', padding: '0 16px', minHeight: '44px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <Trash2 size={15} /> Delete
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create / Edit Contract Modal */}
+      {showContractModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '22px' }}>{contractForm.id ? 'Edit Contract' : 'New Contract'}</h2>
+              <button onClick={() => setShowContractModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <form onSubmit={saveContract} style={{ display: 'grid', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Contract Title</label>
+                <input required placeholder="e.g. Managed Services Agreement 2026" value={contractForm.title} onChange={(e) => setContractForm({ ...contractForm, title: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Account / Company</label>
+                  <input value={contractForm.account_name} onChange={(e) => setContractForm({ ...contractForm, account_name: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Status</label>
+                  <select value={contractForm.status} onChange={(e) => setContractForm({ ...contractForm, status: e.target.value as ContractStatus })} style={{ color: '#111512', background: '#f7f8f3', textTransform: 'capitalize' }}>
+                    {CONTRACT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Linked Deal (optional)</label>
+                <select value={contractForm.opportunity_id} onChange={(e) => setContractForm({ ...contractForm, opportunity_id: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }}>
+                  <option value="">— none —</option>
+                  {opportunities.map((o) => <option key={o.id} value={o.id}>{o.name}{o.account_name ? ` — ${o.account_name}` : ''}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Value (ZMW)</label>
+                  <input type="number" min="0" value={contractForm.value} onChange={(e) => setContractForm({ ...contractForm, value: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Start Date</label>
+                  <input type="date" value={contractForm.start_date} onChange={(e) => setContractForm({ ...contractForm, start_date: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Renewal Date</label>
+                  <input type="date" value={contractForm.renewal_date} onChange={(e) => setContractForm({ ...contractForm, renewal_date: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Document (PDF / DOC / DOCX, max 15 MB)</label>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={(e) => setContractFile(e.target.files?.[0] ?? null)}
+                  style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1', padding: '8px' }}
+                />
+                {contractForm.id && !contractFile && (
+                  <p style={{ fontSize: '11px', color: '#8a908a', margin: '4px 0 0' }}>Leave empty to keep the current file. Choosing a file replaces it.</p>
+                )}
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Notes</label>
+                <textarea value={contractForm.notes} onChange={(e) => setContractForm({ ...contractForm, notes: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '60px' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                <button type="submit" disabled={savingContract} className="primary" style={{ flex: 1, minHeight: '44px' }}>
+                  {savingContract ? 'Saving…' : contractForm.id ? 'Save Changes' : 'Create Contract'}
+                </button>
+                {contractForm.id && (
+                  <button type="button" onClick={() => deleteContract(contractForm.id)} style={{ background: '#fff', border: '1px solid #e2b4b4', color: '#a00', borderRadius: '8px', padding: '0 16px', minHeight: '44px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     <Trash2 size={15} /> Delete
                   </button>
                 )}

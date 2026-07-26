@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, PipelineForecast, AccountsIndex } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, PipelineForecast, AccountsIndex, Contract } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -207,6 +207,22 @@ export const api = {
     request<PipelineForecast>('/admin/opportunities/forecast'),
   adminAccountsIndex: () =>
     request<AccountsIndex>('/admin/accounts'),
+
+  // Contracts
+  adminListContracts: () => request<Contract[]>('/admin/contracts'),
+  adminCreateContract: (body: Partial<Contract>) =>
+    request<Contract>('/admin/contracts', { method: 'POST', body: JSON.stringify(body) }),
+  adminUpdateContract: (id: string, body: Partial<Contract> & { clear_renewal?: boolean }) =>
+    request<Contract>(`/admin/contracts/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  adminDeleteContract: (id: string) =>
+    request<any>(`/admin/contracts/${id}`, { method: 'DELETE' }),
+  uploadContractFile: (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return requestUpload<Contract>(`/admin/contracts/${id}/file`, formData);
+  },
+  downloadContract: (id: string, fileName: string) =>
+    downloadBlob(`/admin/contracts/${id}/file`, fileName),
   adminCreateOpportunity: (body: Partial<Opportunity>) =>
     request<Opportunity>('/admin/opportunities', { method: 'POST', body: JSON.stringify(body) }),
   adminUpdateOpportunity: (id: string, body: Partial<Opportunity>) =>

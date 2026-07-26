@@ -236,6 +236,25 @@ export interface AccountsIndex {
   sectors: SectorRollup[];
 }
 
+export type ContractStatus = 'draft' | 'sent' | 'signed' | 'active' | 'expired';
+
+export interface Contract {
+  id: string;
+  created_at: string;
+  opportunity_id?: string | null;
+  account_name: string;
+  title: string;
+  status: ContractStatus;
+  value: number;
+  start_date?: string | null;
+  renewal_date?: string | null;
+  notes: string;
+  file_name: string;
+  content_type: string;
+  size: number;
+  has_file: boolean;
+}
+
 export interface PipelineForecast {
   open_value: number;
   weighted_forecast: number;
