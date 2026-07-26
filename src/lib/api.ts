@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, PipelineForecast, AccountsIndex, Contract } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, Contract } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -229,6 +229,12 @@ export const api = {
     request<Opportunity>(`/admin/opportunities/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   adminDeleteOpportunity: (id: string) =>
     request<any>(`/admin/opportunities/${id}`, { method: 'DELETE' }),
+
+  // Engagement log (deal activity timeline)
+  adminListActivities: (opportunityId: string) =>
+    request<OpportunityActivity[]>(`/admin/opportunities/${opportunityId}/activities`),
+  adminCreateActivity: (opportunityId: string, body: { type: string; body: string; occurred_at?: string }) =>
+    request<OpportunityActivity>(`/admin/opportunities/${opportunityId}/activities`, { method: 'POST', body: JSON.stringify(body) }),
 
   // Admin — user management
   createUser: (body: { email: string; full_name: string; password: string; role: string }) =>

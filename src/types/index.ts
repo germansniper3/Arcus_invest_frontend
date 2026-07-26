@@ -201,6 +201,20 @@ export interface Opportunity {
   contacts: OpportunityContact[];
 }
 
+export type ActivityType = 'call' | 'meeting' | 'email' | 'note' | 'task' | 'other';
+
+export interface OpportunityActivity {
+  id: string;
+  created_at: string;
+  opportunity_id: string;
+  actor_id?: string | null;
+  actor_name: string;
+  actor_role: Role | '';
+  type: ActivityType;
+  body: string;
+  occurred_at: string;
+}
+
 export interface PipelineStageSummary {
   stage: OpportunityStage;
   count: number;

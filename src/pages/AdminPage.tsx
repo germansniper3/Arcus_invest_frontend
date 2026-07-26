@@ -8,7 +8,7 @@ import {
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, PipelineForecast, AccountsIndex, Contract, ContractStatus } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, PipelineForecast, AccountsIndex, Contract, ContractStatus } from '../types';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts';
 
@@ -40,6 +40,17 @@ const CONTACT_ROLES: { value: string; label: string }[] = [
   { value: 'procurement', label: 'Procurement' },
   { value: 'other', label: 'Other' },
 ];
+
+// Engagement-log entry types (deal activity timeline).
+const ACTIVITY_TYPES: { value: ActivityType; label: string; color: string }[] = [
+  { value: 'call', label: 'Call', color: '#2a5788' },
+  { value: 'meeting', label: 'Meeting', color: '#5b3a8a' },
+  { value: 'email', label: 'Email', color: '#2f6b3d' },
+  { value: 'note', label: 'Note', color: '#5a625d' },
+  { value: 'task', label: 'Task', color: '#8a6d1a' },
+  { value: 'other', label: 'Other', color: '#8a908a' },
+];
+const ACTIVITY_STYLE = (t: ActivityType) => ACTIVITY_TYPES.find((a) => a.value === t) ?? ACTIVITY_TYPES[3];
 
 const CONTRACT_STATUSES: ContractStatus[] = ['draft', 'sent', 'signed', 'active', 'expired'];
 const CONTRACT_STATUS_STYLES: Record<ContractStatus, { bg: string; fg: string }> = {
@@ -126,6 +137,11 @@ export function AdminPage() {
   const [showOpportunityModal, setShowOpportunityModal] = useState(false);
   const emptyOpportunity = { id: '', name: '', account_name: '', contact_name: '', contact_email: '', sector: '', segment: 'standard' as OpportunitySegment, stage: 'prospecting' as OpportunityStage, grade: 'bronze' as OpportunityGrade, deal_value: 0, probability: 10, owner_id: '', expected_close_at: '', notes: '', contacts: [] as OpportunityContact[] };
   const [opportunityForm, setOpportunityForm] = useState(emptyOpportunity);
+  // Engagement log for the opportunity currently open in the modal.
+  const [activities, setActivities] = useState<OpportunityActivity[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [activityForm, setActivityForm] = useState<{ type: ActivityType; body: string }>({ type: 'note', body: '' });
+  const [loggingActivity, setLoggingActivity] = useState(false);
 
   // Accounts & VSI State
   const [accountsIndex, setAccountsIndex] = useState<AccountsIndex | null>(null);
@@ -570,6 +586,8 @@ export function AdminPage() {
   // --- Opportunity (Pipeline) Handlers ---
   function openCreateOpportunityModal() {
     setOpportunityForm(emptyOpportunity);
+    setActivities([]);
+    setActivityForm({ type: 'note', body: '' });
     setShowOpportunityModal(true);
   }
 
@@ -581,7 +599,35 @@ export function AdminPage() {
       expected_close_at: o.expected_close_at ? o.expected_close_at.slice(0, 10) : '', notes: o.notes,
       contacts: (o.contacts ?? []).map((c) => ({ ...c })),
     });
+    setActivityForm({ type: 'note', body: '' });
     setShowOpportunityModal(true);
+    loadActivities(o.id);
+  }
+
+  async function loadActivities(opportunityId: string) {
+    setActivitiesLoading(true);
+    try {
+      setActivities(await api.adminListActivities(opportunityId));
+    } catch {
+      setActivities([]);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }
+
+  async function logActivity(e: React.FormEvent) {
+    e.preventDefault();
+    if (!opportunityForm.id || !activityForm.body.trim()) return;
+    setLoggingActivity(true);
+    try {
+      await api.adminCreateActivity(opportunityForm.id, { type: activityForm.type, body: activityForm.body.trim() });
+      setActivityForm({ type: 'note', body: '' });
+      await loadActivities(opportunityForm.id);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to log activity');
+    } finally {
+      setLoggingActivity(false);
+    }
   }
 
   function addContact() {
@@ -2127,6 +2173,56 @@ export function AdminPage() {
                 )}
               </div>
             </form>
+
+            {/* Engagement log — only for a saved deal */}
+            {opportunityForm.id && (
+              <div style={{ marginTop: '18px', borderTop: '1px solid #e2e4dd', paddingTop: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <Clock size={16} color="#5f7c29" />
+                  <h3 style={{ margin: 0, fontSize: '15px' }}>Engagement Log</h3>
+                  <span style={{ fontSize: '12px', color: '#8a908a' }}>{activities.length} {activities.length === 1 ? 'entry' : 'entries'}</span>
+                </div>
+
+                <form onSubmit={logActivity} style={{ display: 'grid', gap: '8px', marginBottom: '14px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px', alignItems: 'start' }}>
+                    <select value={activityForm.type} onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value as ActivityType })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '10px' }}>
+                      {ACTIVITY_TYPES.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+                    </select>
+                    <textarea placeholder="Log a call, meeting, email or note on this deal…" value={activityForm.body} onChange={(e) => setActivityForm({ ...activityForm, body: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '44px', fontSize: '13px' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button type="submit" className="primary" disabled={loggingActivity || !activityForm.body.trim()} style={{ minHeight: '38px', padding: '0 16px', opacity: loggingActivity || !activityForm.body.trim() ? 0.6 : 1 }}>
+                      {loggingActivity ? 'Logging…' : 'Log activity'}
+                    </button>
+                  </div>
+                </form>
+
+                {activitiesLoading ? (
+                  <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>Loading activity…</p>
+                ) : activities.length === 0 ? (
+                  <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>No engagement logged yet — record the first touchpoint above.</p>
+                ) : (
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    {activities.map((a) => {
+                      const s = ACTIVITY_STYLE(a.type);
+                      return (
+                        <div key={a.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '10px' }}>
+                          <span title={s.label} style={{ marginTop: '5px', width: '9px', height: '9px', borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                          <div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'baseline' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em', color: s.color }}>{s.label}</span>
+                              <span style={{ fontSize: '12px', color: '#111512', fontWeight: 500 }}>{a.actor_name || 'System'}</span>
+                              <span style={{ fontSize: '11px', color: '#8a908a' }}>{new Date(a.occurred_at).toLocaleString()}</span>
+                            </div>
+                            <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#3a403b', whiteSpace: 'pre-wrap' }}>{a.body}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
