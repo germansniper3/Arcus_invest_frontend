@@ -8,7 +8,7 @@ import {
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource } from '../types';
 import DocumentView, { type DocumentKind } from '../components/DocumentView';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit' | 'users';
@@ -193,9 +193,17 @@ export function AdminPage() {
   const [recs, setRecs] = useState<AccountRecommendations | null>(null);
   const [recsLoading, setRecsLoading] = useState(false);
 
+  // Effective permissions from /auth/me. Absent (older token/response) falls back
+  // to the previous role check so the portal never renders empty.
+  const perms = user?.permissions;
+  const can = (res: PermissionResource, act: 'read' | 'create' | 'update' | 'delete' = 'read') => {
+    if (!perms) return user?.role === 'super_admin' || user?.role === 'admin';
+    return perms[res]?.[act] === true;
+  };
+
   // Audit trail State
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const canViewAudit = user?.role === 'super_admin' || user?.role === 'admin';
+  const canViewAudit = can('audit');
 
   // Users + email diagnostics State (same privilege as the audit trail)
   const [users, setUsers] = useState<User[]>([]);
@@ -227,10 +235,16 @@ export function AdminPage() {
     try {
       const nextMetrics = await api.adminMetrics();
       setMetrics(nextMetrics);
-      
+
+      // Each branch is permission-guarded so a restricted role never fires a
+      // request the server will refuse.
       if (activeTab === 'overview') {
-        const nextQuotes = await api.quotes();
-        setQuotes(nextQuotes);
+        if (can('quotes')) {
+          const nextQuotes = await api.quotes();
+          setQuotes(nextQuotes);
+        } else {
+          setQuotes([]);
+        }
       } else if (activeTab === 'enrollments') {
         const nextEnrollments = await api.enrollments();
         setEnrollments(nextEnrollments);
@@ -289,9 +303,21 @@ export function AdminPage() {
     }
   }
 
+  // If the signed-in user has no access to the active tab (e.g. their role changed
+  // mid-session), fall back to Overview rather than repeatedly hitting a 403.
+  const TAB_RESOURCE: Partial<Record<Tab, PermissionResource>> = {
+    pipeline: 'opportunities', accounts: 'accounts', contracts: 'contracts',
+    enrollments: 'enrollments', students: 'students', events: 'events',
+    products: 'products', users: 'users', audit: 'audit',
+  };
   useEffect(() => {
+    const needed = TAB_RESOURCE[activeTab];
+    if (needed && !can(needed)) {
+      setActiveTab('overview');
+      return;
+    }
     loadData();
-  }, [activeTab]);
+  }, [activeTab, user]);
 
   // --- Quote Handlers ---
   async function selectQuoteRequest(item: QuoteRequest) {
@@ -1036,20 +1062,20 @@ export function AdminPage() {
         </div>
 
         <nav className="rail-nav">
-          {([
-            ['overview', 'Overview', Settings],
-            ['pipeline', 'Sales Pipeline', Target],
-            ['accounts', 'Accounts & VSI', Building2],
-            ['contracts', 'Contracts', ScrollText],
-            ['enrollments', 'Enrollments', UserPlus],
-            ['students', 'Students Portal', GraduationCap],
-            ['events', 'Events Manager', Calendar],
-            ['products', 'Products', CheckSquare],
-            ...(canViewAudit ? [
-              ['users', 'Users & Email', Users] as [Tab, string, typeof Settings],
-              ['audit', 'Audit Log', History] as [Tab, string, typeof Settings],
-            ] : []),
-          ] as [Tab, string, typeof Settings][]).map(([tab, label, Icon]) => (
+          {(([
+            ['overview', 'Overview', Settings, true],
+            ['pipeline', 'Sales Pipeline', Target, can('opportunities')],
+            ['accounts', 'Accounts & VSI', Building2, can('accounts')],
+            ['contracts', 'Contracts', ScrollText, can('contracts')],
+            ['enrollments', 'Enrollments', UserPlus, can('enrollments')],
+            ['students', 'Students Portal', GraduationCap, can('students')],
+            ['events', 'Events Manager', Calendar, can('events')],
+            ['products', 'Products', CheckSquare, can('products')],
+            ['users', 'Users & Email', Users, can('users')],
+            ['audit', 'Audit Log', History, canViewAudit],
+          ] as [Tab, string, typeof Settings, boolean][])
+            .filter(([, , , allowed]) => allowed))
+            .map(([tab, label, Icon]) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}

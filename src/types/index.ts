@@ -1,5 +1,22 @@
 export type Role = 'super_admin' | 'admin' | 'admissions' | 'student';
 
+export type PermissionResource =
+  | 'opportunities' | 'accounts' | 'contracts' | 'payments' | 'quotes'
+  | 'enrollments' | 'students' | 'events' | 'products' | 'users'
+  | 'audit' | 'email' | 'metrics';
+
+export interface ResourcePermission {
+  read: boolean;
+  create: boolean;
+  update: boolean;
+  delete: boolean;
+  scope: 'none' | 'own' | 'all';
+}
+
+// Effective permissions for the signed-in user, returned by /auth/me. The
+// backend is authoritative — this only drives what the UI offers.
+export type Permissions = Partial<Record<PermissionResource, ResourcePermission>>;
+
 export interface User {
   id: string;
   email: string;
@@ -7,6 +24,7 @@ export interface User {
   role: Role;
   is_active: boolean;
   student_profile?: StudentProfile | null;
+  permissions?: Permissions;
   // Present on the admin users listing only.
   created_at?: string;
   last_login_at?: string | null;
