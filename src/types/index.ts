@@ -290,6 +290,29 @@ export interface AccountsIndex {
   sectors: SectorRollup[];
 }
 
+export interface ProductRecommendation {
+  slug: string;
+  name: string;
+  price: number;
+  image_url: string;
+  kind: 'cross_sell' | 'upsell';
+  probability: number;
+  rationale: string;
+  reasons: string[];
+}
+
+export interface AccountRecommendations {
+  account: string;
+  sector: string;
+  segment: string;
+  top_grade: OpportunityGrade | '';
+  won_count: number;
+  won_value: number;
+  open_value: number;
+  source: string;
+  recommendations: ProductRecommendation[];
+}
+
 export type ContractStatus = 'draft' | 'sent' | 'signed' | 'active' | 'expired';
 
 export interface Contract {

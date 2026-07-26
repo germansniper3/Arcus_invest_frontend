@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, Contract, AuditLog, Payment } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, AuditLog, Payment } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -207,6 +207,9 @@ export const api = {
     request<PipelineForecast>('/admin/opportunities/forecast'),
   adminAccountsIndex: () =>
     request<AccountsIndex>('/admin/accounts'),
+  // Cross-sell / upsell suggestions for one account (name must be encoded).
+  adminAccountRecommendations: (account: string) =>
+    request<AccountRecommendations>(`/admin/accounts/${encodeURIComponent(account)}/recommendations`),
 
   // Contracts
   adminListContracts: () => request<Contract[]>('/admin/contracts'),

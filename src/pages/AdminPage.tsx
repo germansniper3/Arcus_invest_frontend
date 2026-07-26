@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   LogOut, RefreshCcw, UserPlus, FileText, Calendar,
   Send, CheckSquare, Plus, Edit2, Trash2,
   Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
-  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History
+  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History, Sparkles
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, Contract, ContractStatus, AuditLog } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog } from '../types';
 import DocumentView, { type DocumentKind } from '../components/DocumentView';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit';
@@ -180,6 +180,11 @@ export function AdminPage() {
 
   // Accounts & VSI State
   const [accountsIndex, setAccountsIndex] = useState<AccountsIndex | null>(null);
+
+  // Cross-sell / upsell recommendations for the account row expanded below.
+  const [recsAccount, setRecsAccount] = useState<string | null>(null);
+  const [recs, setRecs] = useState<AccountRecommendations | null>(null);
+  const [recsLoading, setRecsLoading] = useState(false);
 
   // Audit trail State
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -683,6 +688,27 @@ export function AdminPage() {
       toast.error(err.message || 'Failed to log activity');
     } finally {
       setLoggingActivity(false);
+    }
+  }
+
+  // Expand an account row to show cross-sell/upsell suggestions (collapses on
+  // a second click). Results are fetched per account, on demand.
+  async function toggleRecommendations(account: string) {
+    if (recsAccount === account) {
+      setRecsAccount(null);
+      setRecs(null);
+      return;
+    }
+    setRecsAccount(account);
+    setRecs(null);
+    setRecsLoading(true);
+    try {
+      setRecs(await api.adminAccountRecommendations(account));
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load recommendations');
+      setRecsAccount(null);
+    } finally {
+      setRecsLoading(false);
     }
   }
 
@@ -1924,7 +1950,7 @@ export function AdminPage() {
               {/* Top accounts ranked */}
               <section className="data-section" style={{ marginTop: 0 }}>
                 <h2>Top Accounts</h2>
-                <p style={{ marginBottom: '16px' }}>Accounts ranked by total value (open pipeline + closed-won).</p>
+                <p style={{ marginBottom: '16px' }}>Accounts ranked by total value (open pipeline + closed-won). Click an account for cross-sell &amp; upsell suggestions.</p>
                 {accountsList.length === 0 ? (
                   <p className="empty">No accounts yet — set an account name on opportunities in the pipeline.</p>
                 ) : (
@@ -1945,9 +1971,13 @@ export function AdminPage() {
                       <tbody>
                         {accountsList.map((a) => {
                           const grade = a.top_grade ? GRADE_STYLES[a.top_grade] : null;
+                          const expanded = recsAccount === a.account;
                           return (
-                            <tr key={a.account} style={{ borderTop: '1px solid #eceee7' }}>
-                              <td style={{ padding: '12px 14px', fontWeight: 700 }}>{a.account}</td>
+                            <Fragment key={a.account}>
+                            <tr onClick={() => toggleRecommendations(a.account)} style={{ borderTop: '1px solid #eceee7', cursor: 'pointer', background: expanded ? '#f7f8f3' : undefined }}>
+                              <td style={{ padding: '12px 14px', fontWeight: 700 }}>
+                                <span style={{ color: '#8a908a', marginRight: '6px' }}>{expanded ? '▾' : '▸'}</span>{a.account}
+                              </td>
                               <td style={{ padding: '12px 14px', color: '#5a625d' }}>{a.sector}</td>
                               <td style={{ padding: '12px 14px' }}>
                                 {a.segment && SEGMENT_STYLES[a.segment] ? <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: '10px', background: SEGMENT_STYLES[a.segment].bg, color: SEGMENT_STYLES[a.segment].fg }}>{SEGMENT_STYLES[a.segment].label}</span> : '—'}
@@ -1960,6 +1990,48 @@ export function AdminPage() {
                               <td style={{ padding: '12px 14px', textAlign: 'right' }}>{ZMW(a.won_value)}</td>
                               <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800 }}>{ZMW(a.total_value)}</td>
                             </tr>
+                            {expanded && (
+                              <tr style={{ background: '#f7f8f3' }}>
+                                <td colSpan={8} style={{ padding: '0 14px 16px' }}>
+                                  {recsLoading ? (
+                                    <p style={{ fontSize: '13px', color: '#8a908a', margin: '10px 0' }}>Analysing account…</p>
+                                  ) : !recs || recs.recommendations.length === 0 ? (
+                                    <p style={{ fontSize: '13px', color: '#8a908a', margin: '10px 0' }}>No suggestions — the catalogue has nothing new to offer this account yet.</p>
+                                  ) : (
+                                    <div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0 10px' }}>
+                                        <Sparkles size={14} color="#5f7c29" />
+                                        <strong style={{ fontSize: '13px', color: '#111512' }}>Cross-sell &amp; upsell suggestions</strong>
+                                        <span style={{ fontSize: '11px', color: '#8a908a' }}>
+                                          {recs.source.startsWith('anthropic') ? 'AI-assisted rationale' : 'heuristic ranking'}
+                                        </span>
+                                      </div>
+                                      <div style={{ display: 'grid', gap: '8px' }}>
+                                        {recs.recommendations.map((r) => (
+                                          <div key={r.slug} style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '6px', padding: '10px 12px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                            <div style={{ flexShrink: 0, minWidth: '46px', textAlign: 'center' }}>
+                                              <div style={{ fontSize: '17px', fontWeight: 900, color: r.probability >= 65 ? '#35520f' : r.probability >= 45 ? '#8a6d1a' : '#8a908a' }}>{r.probability}%</div>
+                                              <div style={{ fontSize: '9px', color: '#8a908a', textTransform: 'uppercase' }}>fit</div>
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                              <div style={{ display: 'flex', gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
+                                                <strong style={{ fontSize: '13px', color: '#111512' }}>{r.name}</strong>
+                                                <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: '10px', background: r.kind === 'upsell' ? '#e7dff2' : '#e2ecf8', color: r.kind === 'upsell' ? '#5b3a8a' : '#2a5788' }}>
+                                                  {r.kind === 'upsell' ? 'Upsell' : 'Cross-sell'}
+                                                </span>
+                                                {r.price > 0 && <span style={{ fontSize: '12px', color: '#5a625d' }}>{ZMW(r.price)}</span>}
+                                              </div>
+                                              {r.rationale && <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#3a403b' }}>{r.rationale}</p>}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                            </Fragment>
                           );
                         })}
                       </tbody>
