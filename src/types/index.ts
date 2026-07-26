@@ -1,9 +1,9 @@
-export type Role = 'super_admin' | 'admin' | 'admissions' | 'student';
+export type Role = 'super_admin' | 'admin' | 'admissions' | 'student' | string;
 
 export type PermissionResource =
   | 'opportunities' | 'accounts' | 'contracts' | 'payments' | 'quotes'
   | 'enrollments' | 'students' | 'events' | 'products' | 'users'
-  | 'audit' | 'email' | 'metrics';
+  | 'audit' | 'email' | 'metrics' | 'roles';
 
 export interface ResourcePermission {
   read: boolean;
@@ -11,6 +11,26 @@ export interface ResourcePermission {
   update: boolean;
   delete: boolean;
   scope: 'none' | 'own' | 'all';
+}
+
+export interface CustomRolePermission {
+  id?: string;
+  resource: PermissionResource;
+  can_read: boolean;
+  can_create: boolean;
+  can_update: boolean;
+  can_delete: boolean;
+  scope: 'none' | 'own' | 'all';
+}
+
+export interface CustomRole {
+  id: string;
+  name: string;
+  label: string;
+  is_built_in: boolean;
+  description: string;
+  permissions: CustomRolePermission[];
+  user_count?: number;
 }
 
 // Effective permissions for the signed-in user, returned by /auth/me. The

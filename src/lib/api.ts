@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, AuditLog, Payment, EmailStatus } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -267,6 +267,15 @@ export const api = {
   // Admin — outbound email diagnostics
   adminEmailStatus: () => request<EmailStatus>('/admin/email/status'),
   adminSendTestEmail: () => request<{ message: string }>('/admin/email/test', { method: 'POST' }),
+
+  // Admin — role management
+  adminListRoles: () => request<CustomRole[]>('/admin/roles'),
+  adminCreateRole: (body: { name: string; label: string; description?: string; permissions: Omit<CustomRolePermission, 'id'>[] }) =>
+    request<CustomRole>('/admin/roles', { method: 'POST', body: JSON.stringify(body) }),
+  adminUpdateRole: (id: string, body: { label?: string; description?: string; permissions?: Omit<CustomRolePermission, 'id'>[] }) =>
+    request<CustomRole>(`/admin/roles/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  adminDeleteRole: (id: string) =>
+    request<any>(`/admin/roles/${id}`, { method: 'DELETE' }),
 };
 
 // Client-side guard mirroring the backend's 15 MB limit on submission uploads.

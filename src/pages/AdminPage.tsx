@@ -8,7 +8,7 @@ import {
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission } from '../types';
 import DocumentView, { type DocumentKind } from '../components/DocumentView';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit' | 'users';
@@ -205,6 +205,18 @@ export function AdminPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const canViewAudit = can('audit');
 
+  // Roles State
+  const ALL_RESOURCES: PermissionResource[] = [
+    'opportunities', 'accounts', 'contracts', 'payments', 'quotes',
+    'enrollments', 'students', 'events', 'products', 'users',
+    'audit', 'email', 'metrics', 'roles'
+  ];
+  const [roles, setRoles] = useState<CustomRole[]>([]);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [editingRole, setEditingRole] = useState<CustomRole | null>(null);
+  const [roleForm, setRoleForm] = useState<{ id: string; name: string; label: string; description: string; permissions: CustomRolePermission[] }>({ id: '', name: '', label: '', description: '', permissions: [] });
+  const [savingRole, setSavingRole] = useState(false);
+
   // Users + email diagnostics State (same privilege as the audit trail)
   const [users, setUsers] = useState<User[]>([]);
   const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
@@ -271,12 +283,17 @@ export function AdminPage() {
       } else if (activeTab === 'audit') {
         setAuditLogs(await api.adminAuditLogs());
       } else if (activeTab === 'users') {
-        const [nextUsers, nextEmail] = await Promise.all([
+        const fetchTasks: [Promise<User[]>, Promise<EmailStatus>, Promise<CustomRole[]>?] = [
           api.adminListUsers(),
           api.adminEmailStatus(),
-        ]);
+        ];
+        if (can('roles')) {
+          fetchTasks.push(api.adminListRoles());
+        }
+        const [nextUsers, nextEmail, nextRoles] = await Promise.all(fetchTasks);
         setUsers(nextUsers);
         setEmailStatus(nextEmail);
+        if (nextRoles) setRoles(nextRoles);
       } else if (activeTab === 'contracts') {
         const [nextContracts, nextOpportunities] = await Promise.all([
           api.adminListContracts(),
@@ -458,6 +475,128 @@ export function AdminPage() {
       loadData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete user');
+    }
+  }
+
+  // --- Role Handlers ---
+  function openCreateRoleModal() {
+    setEditingRole(null);
+    const initialPerms: CustomRolePermission[] = ALL_RESOURCES.map((r) => ({
+      resource: r,
+      can_read: false,
+      can_create: false,
+      can_update: false,
+      can_delete: false,
+      scope: 'none',
+    }));
+    setRoleForm({ id: '', name: '', label: '', description: '', permissions: initialPerms });
+    setShowRoleModal(true);
+  }
+
+  function openEditRoleModal(role: CustomRole) {
+    setEditingRole(role);
+    const permMap = new Map(role.permissions.map((p) => [p.resource, p]));
+    const fullPerms: CustomRolePermission[] = ALL_RESOURCES.map((r) => {
+      const existing = permMap.get(r);
+      if (existing) return { ...existing };
+      return {
+        resource: r,
+        can_read: false,
+        can_create: false,
+        can_update: false,
+        can_delete: false,
+        scope: 'none',
+      };
+    });
+    setRoleForm({
+      id: role.id,
+      name: role.name,
+      label: role.label,
+      description: role.description || '',
+      permissions: fullPerms,
+    });
+    setShowRoleModal(true);
+  }
+
+  function handlePermChange(
+    res: PermissionResource,
+    field: 'can_read' | 'can_create' | 'can_update' | 'can_delete' | 'scope',
+    value: any
+  ) {
+    setRoleForm((prev) => {
+      const updatedPerms = prev.permissions.map((p) => {
+        if (p.resource !== res) return p;
+        const updated = { ...p, [field]: value };
+        if (field === 'scope') {
+          if (value === 'none') {
+            updated.can_read = false;
+            updated.can_create = false;
+            updated.can_update = false;
+            updated.can_delete = false;
+          } else if (p.scope === 'none' && value !== 'none') {
+            updated.can_read = true;
+          }
+        } else {
+          const hasAny = updated.can_read || updated.can_create || updated.can_update || updated.can_delete;
+          if (hasAny && updated.scope === 'none') {
+            updated.scope = 'all';
+          } else if (!hasAny) {
+            updated.scope = 'none';
+          }
+        }
+        return updated;
+      });
+      return { ...prev, permissions: updatedPerms };
+    });
+  }
+
+  async function saveRole(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingRole(true);
+    try {
+      if (roleForm.id) {
+        // Built-in grants are fixed server-side; sending them would be rejected.
+        // Only label/description are editable for those roles.
+        await api.adminUpdateRole(roleForm.id, {
+          label: roleForm.label,
+          description: roleForm.description,
+          ...(editingRole?.is_built_in ? {} : { permissions: roleForm.permissions }),
+        });
+        toast.success('Role updated successfully');
+      } else {
+        await api.adminCreateRole({
+          name: roleForm.name,
+          label: roleForm.label,
+          description: roleForm.description,
+          permissions: roleForm.permissions,
+        });
+        toast.success('Role created successfully');
+      }
+      setShowRoleModal(false);
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save role');
+    } finally {
+      setSavingRole(false);
+    }
+  }
+
+  async function deleteRole(role: CustomRole) {
+    if (role.is_built_in) {
+      toast.error('Built-in roles cannot be deleted');
+      return;
+    }
+    if ((role.user_count || 0) > 0) {
+      toast.error(`Cannot delete role assigned to ${role.user_count} user(s)`);
+      return;
+    }
+    if (!confirm(`Delete custom role "${role.label}"? This cannot be undone.`)) return;
+    try {
+      await api.adminDeleteRole(role.id);
+      toast.success('Role deleted successfully');
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete role');
     }
   }
 
@@ -2268,6 +2407,98 @@ export function AdminPage() {
         {/* Users & Email Tab */}
         {activeTab === 'users' && (
           <div style={{ display: 'grid', gap: '28px' }}>
+            {/* Roles & Custom RBAC */}
+            {can('roles') && (
+              <section className="data-section" style={{ marginTop: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <h2 style={{ margin: 0 }}>Roles & Access Control</h2>
+                    <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#5a625d' }}>
+                      Define role permissions across system resources. Built-in roles map to system defaults; custom roles can tailor row-level scope and CRUD actions.
+                    </p>
+                  </div>
+                  {can('roles', 'create') && (
+                    <button onClick={openCreateRoleModal} className="primary" style={{ minHeight: '38px', fontSize: '13px' }}>
+                      <Plus size={14} /> New Custom Role
+                    </button>
+                  )}
+                </div>
+
+                {roles.length === 0 ? (
+                  <p className="empty">No roles loaded.</p>
+                ) : (
+                  <div style={{ overflowX: 'auto', border: '1px solid #d6d8d0', borderRadius: '8px', background: '#fff' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px', fontSize: '13px', color: '#111512' }}>
+                      <thead>
+                        <tr style={{ textAlign: 'left', color: '#5a625d', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          <th style={{ padding: '12px 14px' }}>Role</th>
+                          <th style={{ padding: '12px 14px' }}>Slug</th>
+                          <th style={{ padding: '12px 14px' }}>Type</th>
+                          <th style={{ padding: '12px 14px' }}>Assigned Users</th>
+                          <th style={{ padding: '12px 14px' }}>Description</th>
+                          <th style={{ padding: '12px 14px', textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {roles.map((r) => {
+                          const isSuperAdmin = r.name === 'super_admin';
+                          const rs = ROLE_STYLES[r.name] ?? { bg: '#e2ecf8', fg: '#2a5788', label: r.label };
+                          return (
+                            <tr key={r.id} style={{ borderTop: '1px solid #eceee7' }}>
+                              <td style={{ padding: '12px 14px', fontWeight: 700 }}>
+                                <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', padding: '3px 8px', borderRadius: '10px', background: rs.bg, color: rs.fg }}>
+                                  {r.label}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 14px', color: '#5a625d', fontFamily: 'monospace', fontSize: '12px' }}>{r.name}</td>
+                              <td style={{ padding: '12px 14px' }}>
+                                <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: r.is_built_in ? '#eceee7' : '#e8f2dc', color: r.is_built_in ? '#5a625d' : '#35520f' }}>
+                                  {r.is_built_in ? 'Built-in' : 'Custom'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 14px', color: '#5a625d' }}>
+                                {r.user_count ?? 0} user(s)
+                              </td>
+                              <td style={{ padding: '12px 14px', color: '#5a625d', fontSize: '12px', maxWidth: '280px' }}>
+                                {r.description || '—'}
+                              </td>
+                              <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                                  {isSuperAdmin ? (
+                                    <span style={{ fontSize: '11px', color: '#8a908a', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                      <Lock size={12} /> Locked
+                                    </span>
+                                  ) : (
+                                    <>
+                                      {can('roles', 'update') && (
+                                        <button onClick={() => openEditRoleModal(r)} style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '4px', padding: '6px 10px', fontSize: '11px', color: '#111512', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                          <Edit2 size={12} /> Edit Grants
+                                        </button>
+                                      )}
+                                      {!r.is_built_in && can('roles', 'delete') && (
+                                        <button
+                                          onClick={() => deleteRole(r)}
+                                          disabled={(r.user_count || 0) > 0}
+                                          title={(r.user_count || 0) > 0 ? `Cannot delete role assigned to ${r.user_count} user(s)` : 'Delete role'}
+                                          style={{ background: '#fff', border: '1px solid #e2b4b4', borderRadius: '4px', padding: '6px', color: (r.user_count || 0) > 0 ? '#ccc' : '#a00', cursor: (r.user_count || 0) > 0 ? 'not-allowed' : 'pointer', display: 'inline-flex' }}
+                                        >
+                                          <Trash2 size={13} />
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* Email delivery status */}
             <section className="data-section" style={{ marginTop: 0 }}>
               <h2>Email Delivery</h2>
@@ -2510,13 +2741,132 @@ export function AdminPage() {
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Role</label>
                 <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }}>
-                  <option value="admissions">Admissions</option>
-                  <option value="admin">Admin</option>
-                  {user?.role === 'super_admin' && <option value="super_admin">Super Admin</option>}
+                  {roles.length > 0 ? (
+                    roles.filter((r) => r.name !== 'student').map((r) => (
+                      <option key={r.name} value={r.name}>{r.label}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="admissions">Admissions</option>
+                      <option value="admin">Admin</option>
+                      {user?.role === 'super_admin' && <option value="super_admin">Super Admin</option>}
+                    </>
+                  )}
                 </select>
               </div>
               <button type="submit" disabled={savingUser} className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '4px' }}>
                 {savingUser ? 'Creating…' : 'Create User'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Role Editor / Creator Modal */}
+      {showRoleModal && (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ width: 'min(720px, 100%)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '20px' }}>{roleForm.id ? `Edit Role: ${roleForm.label}` : 'Create Custom Role'}</h2>
+              <button onClick={() => setShowRoleModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <form onSubmit={saveRole} style={{ display: 'grid', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Role Label (display name)</label>
+                  <input required placeholder="e.g. Sales Representative" value={roleForm.label} onChange={(e) => setRoleForm({ ...roleForm, label: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Slug Name {roleForm.id ? '(readonly)' : '(lowercase_slug)'}</label>
+                  <input required disabled={!!roleForm.id} placeholder="e.g. sales_rep" value={roleForm.name} onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })} style={{ color: '#111512', background: roleForm.id ? '#eceee7' : '#f7f8f3' }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Description</label>
+                <input placeholder="Short summary of permissions..." value={roleForm.description} onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d', fontWeight: 700 }}>Resource Grants &amp; Scope</label>
+                {editingRole?.is_built_in && (
+                  <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#8a6d1a', background: '#f7edc8', border: '1px solid #e8dca4', borderRadius: '6px', padding: '8px 10px' }}>
+                    <Lock size={12} style={{ verticalAlign: '-2px' }} /> Built-in role — grants are fixed and reset on every deploy. Label and description are editable; to vary permissions, create a custom role.
+                  </p>
+                )}
+                <div style={{ overflowX: 'auto', border: '1px solid #d8dbd1', borderRadius: '6px', marginTop: '6px' }}>
+                  <table className="perm-matrix">
+                    <thead>
+                      <tr>
+                        <th>Resource</th>
+                        <th>Read</th>
+                        <th>Create</th>
+                        <th>Update</th>
+                        <th>Delete</th>
+                        <th>Read Scope</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {roleForm.permissions.map((p) => {
+                        // All built-in role grants are immutable, not just
+                        // super_admin's: the server reseeds them from its
+                        // specification on every boot, so an edit would revert.
+                        const isBuiltInEdit = editingRole?.is_built_in === true;
+                        return (
+                          <tr key={p.resource}>
+                            <td>{p.resource}</td>
+                            <td>
+                              <input
+                                type="checkbox"
+                                disabled={isBuiltInEdit}
+                                checked={p.can_read}
+                                onChange={(e) => handlePermChange(p.resource, 'can_read', e.target.checked)}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="checkbox"
+                                disabled={isBuiltInEdit}
+                                checked={p.can_create}
+                                onChange={(e) => handlePermChange(p.resource, 'can_create', e.target.checked)}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="checkbox"
+                                disabled={isBuiltInEdit}
+                                checked={p.can_update}
+                                onChange={(e) => handlePermChange(p.resource, 'can_update', e.target.checked)}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="checkbox"
+                                disabled={isBuiltInEdit}
+                                checked={p.can_delete}
+                                onChange={(e) => handlePermChange(p.resource, 'can_delete', e.target.checked)}
+                              />
+                            </td>
+                            <td>
+                              <select
+                                disabled={isBuiltInEdit}
+                                value={p.scope}
+                                onChange={(e) => handlePermChange(p.resource, 'scope', e.target.value as any)}
+                              >
+                                <option value="none">None</option>
+                                <option value="own">Own</option>
+                                <option value="all">All</option>
+                              </select>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <button type="submit" disabled={savingRole} className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '4px' }}>
+                {savingRole ? 'Saving…' : (roleForm.id ? 'Update Role' : 'Create Role')}
               </button>
             </form>
           </div>
