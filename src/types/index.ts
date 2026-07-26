@@ -7,6 +7,9 @@ export interface User {
   role: Role;
   is_active: boolean;
   student_profile?: StudentProfile | null;
+  // Present on the admin users listing only.
+  created_at?: string;
+  last_login_at?: string | null;
 }
 
 export interface StudentProfile {
@@ -225,6 +228,18 @@ export interface Opportunity {
   contacts: OpportunityContact[];
   line_items: OpportunityLineItem[];
   line_items_total: number;
+}
+
+export interface EmailStatus {
+  configured: boolean;
+  host: string;
+  port: string;
+  from: string;
+  has_username: boolean;
+  has_password: boolean;
+  frontend_url: string;
+  issues: string[];
+  looks_healthy: boolean;
 }
 
 export interface AuditLog {

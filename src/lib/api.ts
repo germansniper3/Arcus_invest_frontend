@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, AuditLog, Payment } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, AuditLog, Payment, EmailStatus } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -135,10 +135,12 @@ export const api = {
     const q = new URLSearchParams(params as any).toString();
     return request<Enrollment[]>(`/admin/enrollments${q ? `?${q}` : ''}`);
   },
+  adminCreateEnrollment: (body: { full_name: string; email: string; phone?: string; location?: string; tier?: string; about?: string; notes?: string }) =>
+    request<Enrollment>('/admin/enrollments', { method: 'POST', body: JSON.stringify(body) }),
   updateEnrollment: (id: string, body: Partial<Enrollment>) =>
     request<Enrollment>(`/admin/enrollments/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   generateInvite: (enrollmentId: string) =>
-    request<{ invitation: any; claim_url: string }>(`/admin/enrollments/${enrollmentId}/invite`, { method: 'POST' }),
+    request<{ invitation: any; claim_url: string; emailed: boolean; email_error: string }>(`/admin/enrollments/${enrollmentId}/invite`, { method: 'POST' }),
 
   // Admin — quotes
   quotes: () => request<QuoteRequest[]>('/admin/quotes'),
@@ -254,8 +256,17 @@ export const api = {
   },
 
   // Admin — user management
+  adminListUsers: () => request<User[]>('/admin/users'),
   createUser: (body: { email: string; full_name: string; password: string; role: string }) =>
     request<User>('/admin/users', { method: 'POST', body: JSON.stringify(body) }),
+  adminUpdateUser: (id: string, body: { is_active?: boolean; role?: string }) =>
+    request<User>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  adminDeleteUser: (id: string) =>
+    request<any>(`/admin/users/${id}`, { method: 'DELETE' }),
+
+  // Admin — outbound email diagnostics
+  adminEmailStatus: () => request<EmailStatus>('/admin/email/status'),
+  adminSendTestEmail: () => request<{ message: string }>('/admin/email/test', { method: 'POST' }),
 };
 
 // Client-side guard mirroring the backend's 15 MB limit on submission uploads.

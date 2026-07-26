@@ -3,15 +3,22 @@ import {
   LogOut, RefreshCcw, UserPlus, FileText, Calendar,
   Send, CheckSquare, Plus, Edit2, Trash2,
   Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
-  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History, Sparkles
+  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History, Sparkles, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus } from '../types';
 import DocumentView, { type DocumentKind } from '../components/DocumentView';
 
-type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit';
+type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit' | 'users';
+
+const ROLE_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
+  super_admin: { bg: '#e7dff2', fg: '#5b3a8a', label: 'Super Admin' },
+  admin: { bg: '#e2ecf8', fg: '#2a5788', label: 'Admin' },
+  admissions: { bg: '#dcefe0', fg: '#2f6b3d', label: 'Admissions' },
+  student: { bg: '#f7edc8', fg: '#8a6d1a', label: 'Student' },
+};
 
 // Human-readable colour coding for audit-trail action verbs.
 const AUDIT_ACTION_STYLE: Record<string, { bg: string; fg: string }> = {
@@ -190,6 +197,21 @@ export function AdminPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const canViewAudit = user?.role === 'super_admin' || user?.role === 'admin';
 
+  // Users + email diagnostics State (same privilege as the audit trail)
+  const [users, setUsers] = useState<User[]>([]);
+  const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const emptyUser = { email: '', full_name: '', password: '', role: 'admissions' };
+  const [userForm, setUserForm] = useState(emptyUser);
+  const [savingUser, setSavingUser] = useState(false);
+
+  // New-enrollment modal (admin-initiated onboarding)
+  const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
+  const emptyEnrollmentForm = { full_name: '', email: '', phone: '', location: '', tier: 'Builder', about: '', notes: '' };
+  const [enrollmentForm, setEnrollmentForm] = useState(emptyEnrollmentForm);
+  const [savingEnrollment, setSavingEnrollment] = useState(false);
+
   // Contracts State
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [showContractModal, setShowContractModal] = useState(false);
@@ -234,6 +256,13 @@ export function AdminPage() {
         setAccountsIndex(await api.adminAccountsIndex());
       } else if (activeTab === 'audit') {
         setAuditLogs(await api.adminAuditLogs());
+      } else if (activeTab === 'users') {
+        const [nextUsers, nextEmail] = await Promise.all([
+          api.adminListUsers(),
+          api.adminEmailStatus(),
+        ]);
+        setUsers(nextUsers);
+        setEmailStatus(nextEmail);
       } else if (activeTab === 'contracts') {
         const [nextContracts, nextOpportunities] = await Promise.all([
           api.adminListContracts(),
@@ -336,9 +365,85 @@ export function AdminPage() {
       const res = await api.generateInvite(item.id);
       setInviteUrl(res.claim_url);
       setSelectedEnrollment(item);
-      toast.success('Secure onboarding invitation generated!');
+      if (res.emailed) {
+        toast.success(`Invitation emailed to ${item.email}`);
+      } else {
+        // Delivery is best-effort — the link still works, so say what to do next.
+        toast.warning(`Invitation created, but email was not sent (${res.email_error || 'unknown reason'}). Copy the link below and send it manually.`);
+      }
     } catch (err: any) {
       toast.error(err.message || 'Failed to generate invitation');
+    }
+  }
+
+  async function saveEnrollment(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingEnrollment(true);
+    try {
+      await api.adminCreateEnrollment(enrollmentForm);
+      toast.success('Enrollment created — you can now send the onboarding invite.');
+      setShowEnrollmentModal(false);
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create enrollment');
+    } finally {
+      setSavingEnrollment(false);
+    }
+  }
+
+  // --- Users & email handlers ---
+  async function saveUser(e: React.FormEvent) {
+    e.preventDefault();
+    if (userForm.password.length < 10) {
+      toast.error('Password must be at least 10 characters');
+      return;
+    }
+    setSavingUser(true);
+    try {
+      await api.createUser(userForm);
+      toast.success('User created');
+      setShowUserModal(false);
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create user');
+    } finally {
+      setSavingUser(false);
+    }
+  }
+
+  async function toggleUserActive(u: User) {
+    try {
+      await api.adminUpdateUser(u.id, { is_active: !u.is_active });
+      toast.success(u.is_active ? 'User deactivated' : 'User activated');
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update user');
+    }
+  }
+
+  async function deleteUser(u: User) {
+    const extra = u.role === 'student'
+      ? ' Their capstone data will be removed and the enrollment reopened for re-invitation.'
+      : '';
+    if (!confirm(`Permanently delete ${u.full_name} (${u.email})?${extra} This cannot be undone.`)) return;
+    try {
+      await api.adminDeleteUser(u.id);
+      toast.success('User deleted');
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete user');
+    }
+  }
+
+  async function sendTestEmail() {
+    setSendingTestEmail(true);
+    try {
+      const res = await api.adminSendTestEmail();
+      toast.success(res.message || 'Test email sent');
+    } catch (err: any) {
+      toast.error(err.message || 'Test email failed');
+    } finally {
+      setSendingTestEmail(false);
     }
   }
 
@@ -940,7 +1045,10 @@ export function AdminPage() {
             ['students', 'Students Portal', GraduationCap],
             ['events', 'Events Manager', Calendar],
             ['products', 'Products', CheckSquare],
-            ...(canViewAudit ? [['audit', 'Audit Log', History] as [Tab, string, typeof Settings]] : []),
+            ...(canViewAudit ? [
+              ['users', 'Users & Email', Users] as [Tab, string, typeof Settings],
+              ['audit', 'Audit Log', History] as [Tab, string, typeof Settings],
+            ] : []),
           ] as [Tab, string, typeof Settings][]).map(([tab, label, Icon]) => (
             <button
               key={tab}
@@ -972,11 +1080,22 @@ export function AdminPage() {
               {activeTab === 'events' && 'Public Programs & Events'}
               {activeTab === 'products' && 'Product Inventory Manager'}
               {activeTab === 'audit' && 'Audit Trail'}
+              {activeTab === 'users' && 'Users & Email Delivery'}
             </h1>
           </div>
           {activeTab === 'pipeline' && (
             <button onClick={openCreateOpportunityModal} className="primary" style={{ minHeight: '40px' }}>
               <Plus size={16} /> New Opportunity
+            </button>
+          )}
+          {activeTab === 'enrollments' && (
+            <button onClick={() => { setEnrollmentForm(emptyEnrollmentForm); setShowEnrollmentModal(true); }} className="primary" style={{ minHeight: '40px' }}>
+              <Plus size={16} /> New Enrollment
+            </button>
+          )}
+          {activeTab === 'users' && (
+            <button onClick={() => { setUserForm(emptyUser); setShowUserModal(true); }} className="primary" style={{ minHeight: '40px' }}>
+              <Plus size={16} /> New Staff User
             </button>
           )}
           {activeTab === 'contracts' && (
@@ -994,7 +1113,7 @@ export function AdminPage() {
             <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{ZMW(forecast?.won_value ?? 0)}</span><p style={{ margin: '4px 0 0' }}>Won Value</p></article>
             <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{Math.round(forecast?.win_rate ?? 0)}%</span><p style={{ margin: '4px 0 0' }}>Win Rate ({forecast?.won_count ?? 0}W / {forecast?.lost_count ?? 0}L)</p></article>
           </div>
-        ) : activeTab === 'accounts' || activeTab === 'contracts' || activeTab === 'audit' ? null : (
+        ) : activeTab === 'accounts' || activeTab === 'contracts' || activeTab === 'audit' || activeTab === 'users' ? null : (
           <div className="metric-row">
             <article><span>{metrics.enrollments}</span><p>Total Enrollments</p></article>
             <article><span>{metrics.students}</span><p>Active Students</p></article>
@@ -2119,6 +2238,103 @@ export function AdminPage() {
             )}
           </section>
         )}
+
+        {/* Users & Email Tab */}
+        {activeTab === 'users' && (
+          <div style={{ display: 'grid', gap: '28px' }}>
+            {/* Email delivery status */}
+            <section className="data-section" style={{ marginTop: 0 }}>
+              <h2>Email Delivery</h2>
+              <p style={{ marginBottom: '16px' }}>Onboarding invitations and event broadcasts are sent over SMTP. Send a test to your own address to prove delivery without emailing students.</p>
+              {!emailStatus ? (
+                <p style={{ fontSize: '13px', color: '#8a908a' }}>Checking…</p>
+              ) : (
+                <article className="panel" style={{ padding: '16px', display: 'grid', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', padding: '4px 10px', borderRadius: '10px', background: emailStatus.looks_healthy ? '#e8f2dc' : '#ffe2e2', color: emailStatus.looks_healthy ? '#35520f' : '#a00' }}>
+                      {emailStatus.configured ? (emailStatus.looks_healthy ? 'Configured' : 'Needs attention') : 'Not configured'}
+                    </span>
+                    <button onClick={sendTestEmail} disabled={sendingTestEmail || !emailStatus.configured} style={{ background: '#eef0ea', border: '1px solid #dfe1da', borderRadius: '6px', padding: '8px 14px', fontSize: '13px', color: '#111512', cursor: emailStatus.configured ? 'pointer' : 'not-allowed', opacity: emailStatus.configured ? 1 : 0.5, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <Mail size={14} /> {sendingTestEmail ? 'Sending…' : 'Send test email to myself'}
+                    </button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', fontSize: '12px', color: '#5a625d' }}>
+                    <span>Host: <strong style={{ color: '#111512' }}>{emailStatus.host || '— not set —'}</strong></span>
+                    <span>Port: <strong style={{ color: '#111512' }}>{emailStatus.port || '— not set —'}</strong></span>
+                    <span>From: <strong style={{ color: '#111512' }}>{emailStatus.from || '— not set —'}</strong></span>
+                    <span>Username: <strong style={{ color: '#111512' }}>{emailStatus.has_username ? 'set' : 'not set'}</strong></span>
+                    <span>Password: <strong style={{ color: '#111512' }}>{emailStatus.has_password ? 'set' : 'not set'}</strong></span>
+                    <span>Claim-link base: <strong style={{ color: '#111512' }}>{emailStatus.frontend_url || '— not set —'}</strong></span>
+                  </div>
+                  {emailStatus.issues.length > 0 && (
+                    <ul style={{ margin: 0, paddingLeft: '18px', display: 'grid', gap: '4px' }}>
+                      {emailStatus.issues.map((issue) => (
+                        <li key={issue} style={{ fontSize: '12px', color: '#a00' }}>{issue}</li>
+                      ))}
+                    </ul>
+                  )}
+                </article>
+              )}
+            </section>
+
+            {/* All user accounts */}
+            <section className="data-section" style={{ marginTop: 0 }}>
+              <h2>User Accounts</h2>
+              <p style={{ marginBottom: '16px' }}>Every account in the system. Students are created by claiming an onboarding invite; staff are created here. Deleting a student clears their capstone data and reopens the enrollment for re-invitation.</p>
+              {users.length === 0 ? (
+                <p className="empty">No users found.</p>
+              ) : (
+                <div style={{ overflowX: 'auto', border: '1px solid #d6d8d0', borderRadius: '8px', background: '#fff' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px', fontSize: '13px', color: '#111512' }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', color: '#5a625d', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        <th style={{ padding: '12px 14px' }}>Name</th>
+                        <th style={{ padding: '12px 14px' }}>Email</th>
+                        <th style={{ padding: '12px 14px' }}>Role</th>
+                        <th style={{ padding: '12px 14px' }}>Status</th>
+                        <th style={{ padding: '12px 14px' }}>Created</th>
+                        <th style={{ padding: '12px 14px', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((u) => {
+                        const rs = ROLE_STYLES[u.role] ?? { bg: '#eceee7', fg: '#5a625d', label: u.role };
+                        const isSelf = u.id === user?.id;
+                        return (
+                          <tr key={u.id} style={{ borderTop: '1px solid #eceee7', opacity: u.is_active ? 1 : 0.55 }}>
+                            <td style={{ padding: '12px 14px', fontWeight: 700 }}>
+                              {u.full_name}{isSelf && <span style={{ fontSize: '11px', color: '#8a908a', fontWeight: 400 }}> (you)</span>}
+                            </td>
+                            <td style={{ padding: '12px 14px', color: '#5a625d' }}>{u.email}</td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <span style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: '10px', background: rs.bg, color: rs.fg }}>{rs.label}</span>
+                            </td>
+                            <td style={{ padding: '12px 14px', color: u.is_active ? '#35520f' : '#a00' }}>{u.is_active ? 'Active' : 'Inactive'}</td>
+                            <td style={{ padding: '12px 14px', color: '#8a908a', fontSize: '12px' }}>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
+                            <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                              {isSelf ? (
+                                <span style={{ fontSize: '11px', color: '#b0b4ab' }}>—</span>
+                              ) : (
+                                <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                  <button onClick={() => toggleUserActive(u)} style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '4px', padding: '6px 10px', fontSize: '11px', color: '#111512', cursor: 'pointer' }}>
+                                    {u.is_active ? 'Deactivate' : 'Activate'}
+                                  </button>
+                                  <button onClick={() => deleteUser(u)} title="Delete permanently" style={{ background: '#fff', border: '1px solid #e2b4b4', borderRadius: '4px', padding: '6px', color: '#a00', cursor: 'pointer', display: 'inline-flex' }}>
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
       </section>
 
       {/* Create / Edit Event Modal */}
@@ -2191,6 +2407,90 @@ export function AdminPage() {
               </div>
               <button type="submit" className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '12px' }}>
                 Send Broadcast <Send size={14} />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* New Enrollment Modal (admin-initiated onboarding) */}
+      {showEnrollmentModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '22px' }}>New Enrollment</h2>
+              <button onClick={() => setShowEnrollmentModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <p style={{ margin: 0, fontSize: '13px', color: '#5a625d' }}>Create an enrollment record directly, then send the onboarding invite from the list.</p>
+            <form onSubmit={saveEnrollment} style={{ display: 'grid', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Full Name</label>
+                <input required value={enrollmentForm.full_name} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, full_name: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Email</label>
+                <input required type="email" value={enrollmentForm.email} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, email: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Phone</label>
+                  <input value={enrollmentForm.phone} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, phone: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Tier</label>
+                  <select value={enrollmentForm.tier} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, tier: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }}>
+                    {['Explorer', 'Builder', 'Professional'].map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Location</label>
+                <input value={enrollmentForm.location} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, location: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Notes (internal)</label>
+                <textarea value={enrollmentForm.notes} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, notes: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '70px' }} />
+              </div>
+              <button type="submit" disabled={savingEnrollment} className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '4px' }}>
+                {savingEnrollment ? 'Creating…' : 'Create Enrollment'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* New Staff User Modal */}
+      {showUserModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '22px' }}>New Staff User</h2>
+              <button onClick={() => setShowUserModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <p style={{ margin: 0, fontSize: '13px', color: '#5a625d' }}>Staff accounts only. Students are created by claiming an onboarding invitation.</p>
+            <form onSubmit={saveUser} style={{ display: 'grid', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Full Name</label>
+                <input required value={userForm.full_name} onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Email</label>
+                <input required type="email" value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Temporary Password (min 10 characters)</label>
+                <input required type="password" minLength={10} value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Role</label>
+                <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }}>
+                  <option value="admissions">Admissions</option>
+                  <option value="admin">Admin</option>
+                  {user?.role === 'super_admin' && <option value="super_admin">Super Admin</option>}
+                </select>
+              </div>
+              <button type="submit" disabled={savingUser} className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '4px' }}>
+                {savingUser ? 'Creating…' : 'Create User'}
               </button>
             </form>
           </div>
