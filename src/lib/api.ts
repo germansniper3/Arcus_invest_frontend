@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, Contract, AuditLog } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, Contract, AuditLog, Payment } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -235,6 +235,14 @@ export const api = {
     request<OpportunityActivity[]>(`/admin/opportunities/${opportunityId}/activities`),
   adminCreateActivity: (opportunityId: string, body: { type: string; body: string; occurred_at?: string }) =>
     request<OpportunityActivity>(`/admin/opportunities/${opportunityId}/activities`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // Payments (basis for receipts and invoice balances)
+  adminListPayments: (opportunityId: string) =>
+    request<Payment[]>(`/admin/opportunities/${opportunityId}/payments`),
+  adminCreatePayment: (opportunityId: string, body: { amount: number; method: string; reference?: string; paid_at?: string; note?: string }) =>
+    request<Payment>(`/admin/opportunities/${opportunityId}/payments`, { method: 'POST', body: JSON.stringify(body) }),
+  adminDeletePayment: (paymentId: string) =>
+    request<any>(`/admin/payments/${paymentId}`, { method: 'DELETE' }),
 
   // Audit trail
   adminAuditLogs: (params?: { entity?: string; action?: string }) => {

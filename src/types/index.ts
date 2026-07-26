@@ -179,6 +179,30 @@ export interface OpportunityContact {
   is_primary: boolean;
 }
 
+export interface OpportunityLineItem {
+  id?: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  line_total?: number;
+  position?: number;
+}
+
+export type PaymentMethod = 'cash' | 'bank_transfer' | 'mobile_money' | 'cheque' | 'card' | 'other';
+
+export interface Payment {
+  id: string;
+  created_at: string;
+  opportunity_id: string;
+  amount: number;
+  method: PaymentMethod;
+  reference: string;
+  paid_at: string;
+  note: string;
+  recorded_by_id?: string | null;
+  recorded_by: string;
+}
+
 export interface Opportunity {
   id: string;
   created_at: string;
@@ -199,6 +223,8 @@ export interface Opportunity {
   expected_close_at?: string | null;
   notes: string;
   contacts: OpportunityContact[];
+  line_items: OpportunityLineItem[];
+  line_items_total: number;
 }
 
 export interface AuditLog {

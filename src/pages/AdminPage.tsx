@@ -8,7 +8,8 @@ import {
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, PipelineForecast, AccountsIndex, Contract, ContractStatus, AuditLog } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, Contract, ContractStatus, AuditLog } from '../types';
+import DocumentView, { type DocumentKind } from '../components/DocumentView';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit';
 
@@ -66,6 +67,17 @@ const ACTIVITY_TYPES: { value: ActivityType; label: string; color: string }[] = 
   { value: 'other', label: 'Other', color: '#8a908a' },
 ];
 const ACTIVITY_STYLE = (t: ActivityType) => ACTIVITY_TYPES.find((a) => a.value === t) ?? ACTIVITY_TYPES[3];
+
+// Payment methods for recording receipts.
+const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
+  { value: 'bank_transfer', label: 'Bank Transfer' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'mobile_money', label: 'Mobile Money' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'card', label: 'Card' },
+  { value: 'other', label: 'Other' },
+];
+const PAYMENT_METHOD_LABEL = (m: string) => PAYMENT_METHODS.find((x) => x.value === m)?.label ?? m;
 
 const CONTRACT_STATUSES: ContractStatus[] = ['draft', 'sent', 'signed', 'active', 'expired'];
 const CONTRACT_STATUS_STYLES: Record<ContractStatus, { bg: string; fg: string }> = {
@@ -150,13 +162,21 @@ export function AdminPage() {
   const [forecast, setForecast] = useState<PipelineForecast | null>(null);
   const [staff, setStaff] = useState<User[]>([]);
   const [showOpportunityModal, setShowOpportunityModal] = useState(false);
-  const emptyOpportunity = { id: '', name: '', account_name: '', contact_name: '', contact_email: '', sector: '', segment: 'standard' as OpportunitySegment, stage: 'prospecting' as OpportunityStage, grade: 'bronze' as OpportunityGrade, deal_value: 0, probability: 10, owner_id: '', expected_close_at: '', notes: '', contacts: [] as OpportunityContact[] };
+  const emptyOpportunity = { id: '', name: '', account_name: '', contact_name: '', contact_email: '', sector: '', segment: 'standard' as OpportunitySegment, stage: 'prospecting' as OpportunityStage, grade: 'bronze' as OpportunityGrade, deal_value: 0, probability: 10, owner_id: '', expected_close_at: '', notes: '', contacts: [] as OpportunityContact[], line_items: [] as OpportunityLineItem[] };
   const [opportunityForm, setOpportunityForm] = useState(emptyOpportunity);
   // Engagement log for the opportunity currently open in the modal.
   const [activities, setActivities] = useState<OpportunityActivity[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [activityForm, setActivityForm] = useState<{ type: ActivityType; body: string }>({ type: 'note', body: '' });
   const [loggingActivity, setLoggingActivity] = useState(false);
+  // Payments recorded against the opportunity currently open in the modal.
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const emptyPayment = { amount: 0, method: 'bank_transfer' as PaymentMethod, reference: '', note: '' };
+  const [paymentForm, setPaymentForm] = useState(emptyPayment);
+  const [recordingPayment, setRecordingPayment] = useState(false);
+  // Document generator overlay (quotation / invoice / receipt).
+  const [docState, setDocState] = useState<{ kind: DocumentKind; opportunity: Opportunity; receiptPayment?: Payment } | null>(null);
+  const [applyVat, setApplyVat] = useState(true);
 
   // Accounts & VSI State
   const [accountsIndex, setAccountsIndex] = useState<AccountsIndex | null>(null);
@@ -609,6 +629,8 @@ export function AdminPage() {
     setOpportunityForm(emptyOpportunity);
     setActivities([]);
     setActivityForm({ type: 'note', body: '' });
+    setPayments([]);
+    setPaymentForm(emptyPayment);
     setShowOpportunityModal(true);
   }
 
@@ -619,10 +641,23 @@ export function AdminPage() {
       deal_value: o.deal_value, probability: o.probability, owner_id: o.owner_id ?? '',
       expected_close_at: o.expected_close_at ? o.expected_close_at.slice(0, 10) : '', notes: o.notes,
       contacts: (o.contacts ?? []).map((c) => ({ ...c })),
+      line_items: (o.line_items ?? []).map((li) => ({ ...li })),
     });
     setActivityForm({ type: 'note', body: '' });
+    setPaymentForm(emptyPayment);
     setShowOpportunityModal(true);
     loadActivities(o.id);
+    loadPayments(o.id);
+  }
+
+  function addLineItem() {
+    setOpportunityForm((prev) => ({ ...prev, line_items: [...prev.line_items, { description: '', quantity: 1, unit_price: 0 }] }));
+  }
+  function updateLineItem(i: number, patch: Partial<OpportunityLineItem>) {
+    setOpportunityForm((prev) => ({ ...prev, line_items: prev.line_items.map((li, idx) => (idx === i ? { ...li, ...patch } : li)) }));
+  }
+  function removeLineItem(i: number) {
+    setOpportunityForm((prev) => ({ ...prev, line_items: prev.line_items.filter((_, idx) => idx !== i) }));
   }
 
   async function loadActivities(opportunityId: string) {
@@ -649,6 +684,72 @@ export function AdminPage() {
     } finally {
       setLoggingActivity(false);
     }
+  }
+
+  async function loadPayments(opportunityId: string) {
+    try {
+      setPayments(await api.adminListPayments(opportunityId));
+    } catch {
+      setPayments([]);
+    }
+  }
+
+  async function recordPayment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!opportunityForm.id || Number(paymentForm.amount) <= 0) return;
+    setRecordingPayment(true);
+    try {
+      await api.adminCreatePayment(opportunityForm.id, {
+        amount: Number(paymentForm.amount),
+        method: paymentForm.method,
+        reference: paymentForm.reference.trim(),
+        note: paymentForm.note.trim(),
+      });
+      setPaymentForm(emptyPayment);
+      await loadPayments(opportunityForm.id);
+      toast.success('Payment recorded');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to record payment');
+    } finally {
+      setRecordingPayment(false);
+    }
+  }
+
+  async function deletePayment(id: string) {
+    if (!confirm('Remove this payment record?')) return;
+    try {
+      await api.adminDeletePayment(id);
+      if (opportunityForm.id) await loadPayments(opportunityForm.id);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to remove payment');
+    }
+  }
+
+  // Assemble the current modal's form back into an Opportunity for the document
+  // generator (line items + contacts as edited, without needing a re-fetch).
+  function openDocument(kind: DocumentKind, receiptPayment?: Payment) {
+    const opp: Opportunity = {
+      id: opportunityForm.id,
+      created_at: '', updated_at: '',
+      name: opportunityForm.name,
+      account_name: opportunityForm.account_name,
+      contact_name: opportunityForm.contact_name,
+      contact_email: opportunityForm.contact_email,
+      sector: opportunityForm.sector,
+      segment: opportunityForm.segment,
+      stage: opportunityForm.stage,
+      grade: opportunityForm.grade,
+      deal_value: Number(opportunityForm.deal_value) || 0,
+      probability: Number(opportunityForm.probability),
+      weighted_value: 0,
+      owner_id: opportunityForm.owner_id || null,
+      expected_close_at: opportunityForm.expected_close_at ? new Date(opportunityForm.expected_close_at).toISOString() : null,
+      notes: opportunityForm.notes,
+      contacts: opportunityForm.contacts,
+      line_items: opportunityForm.line_items.map((li) => ({ ...li, quantity: Number(li.quantity) || 1, unit_price: Number(li.unit_price) || 0 })),
+      line_items_total: opportunityForm.line_items.reduce((s, li) => s + (Number(li.quantity) || 1) * (Number(li.unit_price) || 0), 0),
+    };
+    setDocState({ kind, opportunity: opp, receiptPayment });
   }
 
   function addContact() {
@@ -678,6 +779,7 @@ export function AdminPage() {
       expected_close_at: opportunityForm.expected_close_at ? new Date(opportunityForm.expected_close_at).toISOString() : null,
       notes: opportunityForm.notes,
       contacts: opportunityForm.contacts.filter((c) => c.name.trim()),
+      line_items: opportunityForm.line_items.filter((li) => li.description.trim()).map((li) => ({ description: li.description, quantity: Number(li.quantity) || 1, unit_price: Number(li.unit_price) || 0 })),
     };
     try {
       if (opportunityForm.id) {
@@ -2208,6 +2310,35 @@ export function AdminPage() {
                 )}
               </div>
 
+              {/* Line items — priced goods/services for quotations & invoices */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Line Items <span style={{ color: '#8a908a' }}>(for quotes &amp; invoices)</span></label>
+                  <button type="button" onClick={addLineItem} style={{ background: '#eef0ea', border: 0, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', color: '#111512', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <Plus size={12} /> Add line
+                  </button>
+                </div>
+                {opportunityForm.line_items.length === 0 ? (
+                  <p style={{ fontSize: '12px', color: '#8a908a', margin: 0 }}>No line items — documents fall back to a single line at the deal value.</p>
+                ) : (
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {opportunityForm.line_items.map((li, i) => (
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 66px 108px auto', gap: '6px', alignItems: 'center' }}>
+                        <input placeholder="Description" value={li.description} onChange={(e) => updateLineItem(i, { description: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '8px 10px' }} />
+                        <input type="number" min="0" step="1" title="Quantity" value={li.quantity} onChange={(e) => updateLineItem(i, { quantity: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '8px 10px' }} />
+                        <input type="number" min="0" title="Unit price (ZMW)" value={li.unit_price} onChange={(e) => updateLineItem(i, { unit_price: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '8px 10px' }} />
+                        <button type="button" onClick={() => removeLineItem(i)} title="Remove" style={{ background: '#f7f8f3', border: '1px solid #e2e4dd', borderRadius: '4px', padding: '8px', cursor: 'pointer', color: '#a00', display: 'inline-flex' }}>
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '12px', color: '#5a625d' }}>
+                      Items total:&nbsp;<strong style={{ color: '#111512' }}>{ZMW(opportunityForm.line_items.reduce((s, li) => s + (Number(li.quantity) || 1) * (Number(li.unit_price) || 0), 0))}</strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Notes</label>
                 <textarea value={opportunityForm.notes} onChange={(e) => setOpportunityForm({ ...opportunityForm, notes: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '70px' }} />
@@ -2276,8 +2407,77 @@ export function AdminPage() {
                 )}
               </div>
             )}
+
+            {/* Documents & payments — only for a saved deal */}
+            {opportunityForm.id && (
+              <div style={{ marginTop: '18px', borderTop: '1px solid #e2e4dd', paddingTop: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <FileText size={16} color="#5f7c29" />
+                  <h3 style={{ margin: 0, fontSize: '15px' }}>Documents &amp; Payments</h3>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                  <button type="button" onClick={() => openDocument('quotation')} style={{ background: '#eef0ea', border: '1px solid #dfe1da', borderRadius: '6px', padding: '8px 14px', fontSize: '13px', color: '#111512', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <FileText size={14} /> Quotation
+                  </button>
+                  <button type="button" onClick={() => openDocument('invoice')} style={{ background: '#eef0ea', border: '1px solid #dfe1da', borderRadius: '6px', padding: '8px 14px', fontSize: '13px', color: '#111512', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <FileText size={14} /> Invoice
+                  </button>
+                </div>
+
+                <form onSubmit={recordPayment} style={{ display: 'grid', gridTemplateColumns: '120px 150px 1fr auto', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
+                  <input type="number" min="0" placeholder="Amount" value={paymentForm.amount || ''} onChange={(e) => setPaymentForm({ ...paymentForm, amount: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '9px 10px' }} />
+                  <select value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value as PaymentMethod })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '9px 10px' }}>
+                    {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                  <input placeholder="Reference (optional)" value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '9px 10px' }} />
+                  <button type="submit" className="primary" disabled={recordingPayment || Number(paymentForm.amount) <= 0} style={{ minHeight: '38px', padding: '0 14px', opacity: recordingPayment || Number(paymentForm.amount) <= 0 ? 0.6 : 1 }}>
+                    {recordingPayment ? 'Saving…' : 'Record'}
+                  </button>
+                </form>
+
+                {payments.length === 0 ? (
+                  <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>No payments recorded — a receipt becomes available once a payment is logged.</p>
+                ) : (
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {payments.map((p) => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', background: '#f7f8f3', border: '1px solid #e2e4dd', borderRadius: '6px', padding: '8px 10px' }}>
+                        <div style={{ fontSize: '13px', minWidth: 0 }}>
+                          <strong style={{ color: '#111512' }}>{ZMW(p.amount)}</strong>
+                          <span style={{ color: '#5a625d' }}> · {PAYMENT_METHOD_LABEL(p.method)} · {new Date(p.paid_at).toLocaleDateString()}</span>
+                          {p.reference && <span style={{ color: '#8a908a' }}> · {p.reference}</span>}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                          <button type="button" onClick={() => openDocument('receipt', p)} style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '4px', padding: '6px 10px', fontSize: '12px', color: '#111512', cursor: 'pointer' }}>Receipt</button>
+                          <button type="button" onClick={() => deletePayment(p.id)} title="Remove" style={{ background: '#fff', border: '1px solid #e2e4dd', borderRadius: '4px', padding: '6px', cursor: 'pointer', color: '#a00', display: 'inline-flex' }}>
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '12px', color: '#5a625d' }}>
+                      Total received:&nbsp;<strong style={{ color: '#111512' }}>{ZMW(payments.reduce((s, p) => s + p.amount, 0))}</strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      {/* Document generator overlay (quotation / invoice / receipt) */}
+      {docState && (
+        <DocumentView
+          kind={docState.kind}
+          opportunity={docState.opportunity}
+          payments={payments}
+          ownerName={staffName(docState.opportunity.owner_id)}
+          applyVat={applyVat}
+          onToggleVat={() => setApplyVat((v) => !v)}
+          receiptPayment={docState.receiptPayment}
+          onClose={() => setDocState(null)}
+        />
       )}
 
       {/* Create / Edit Contract Modal */}
