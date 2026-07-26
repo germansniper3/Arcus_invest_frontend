@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, Contract } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, Contract, AuditLog } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -235,6 +235,12 @@ export const api = {
     request<OpportunityActivity[]>(`/admin/opportunities/${opportunityId}/activities`),
   adminCreateActivity: (opportunityId: string, body: { type: string; body: string; occurred_at?: string }) =>
     request<OpportunityActivity>(`/admin/opportunities/${opportunityId}/activities`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // Audit trail
+  adminAuditLogs: (params?: { entity?: string; action?: string }) => {
+    const q = new URLSearchParams(Object.entries(params ?? {}).filter(([, v]) => v) as [string, string][]).toString();
+    return request<AuditLog[]>(`/admin/audit-logs${q ? `?${q}` : ''}`);
+  },
 
   // Admin — user management
   createUser: (body: { email: string; full_name: string; password: string; role: string }) =>

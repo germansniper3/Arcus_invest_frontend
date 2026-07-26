@@ -201,6 +201,20 @@ export interface Opportunity {
   contacts: OpportunityContact[];
 }
 
+export interface AuditLog {
+  id: string;
+  created_at: string;
+  actor_id?: string | null;
+  actor_name: string;
+  actor_role: Role | '';
+  action: string;
+  entity: string;
+  entity_id: string;
+  method: string;
+  path: string;
+  status: number;
+}
+
 export type ActivityType = 'call' | 'meeting' | 'email' | 'note' | 'task' | 'other';
 
 export interface OpportunityActivity {

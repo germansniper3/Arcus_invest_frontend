@@ -3,14 +3,29 @@ import {
   LogOut, RefreshCcw, UserPlus, FileText, Calendar,
   Send, CheckSquare, Plus, Edit2, Trash2,
   Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
-  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText
+  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, PipelineForecast, AccountsIndex, Contract, ContractStatus } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, PipelineForecast, AccountsIndex, Contract, ContractStatus, AuditLog } from '../types';
 
-type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts';
+type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit';
+
+// Human-readable colour coding for audit-trail action verbs.
+const AUDIT_ACTION_STYLE: Record<string, { bg: string; fg: string }> = {
+  create: { bg: '#e8f2dc', fg: '#35520f' },
+  update: { bg: '#e2ecf8', fg: '#2a5788' },
+  delete: { bg: '#ffe2e2', fg: '#a00' },
+  convert: { bg: '#e7dff2', fg: '#5b3a8a' },
+  upload: { bg: '#f7edc8', fg: '#8a6d1a' },
+  approve: { bg: '#dcefe0', fg: '#2f6b3d' },
+  log: { bg: '#eceee7', fg: '#5a625d' },
+  invite: { bg: '#e2ecf8', fg: '#2a5788' },
+  broadcast: { bg: '#f0e0d0', fg: '#8a5a2b' },
+  other: { bg: '#eceee7', fg: '#5a625d' },
+};
+const auditActionStyle = (a: string) => AUDIT_ACTION_STYLE[a] ?? AUDIT_ACTION_STYLE.other;
 
 // Pipeline stage + grade display metadata (labels, order, colours).
 const STAGE_ORDER: OpportunityStage[] = ['prospecting', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
@@ -146,6 +161,10 @@ export function AdminPage() {
   // Accounts & VSI State
   const [accountsIndex, setAccountsIndex] = useState<AccountsIndex | null>(null);
 
+  // Audit trail State
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const canViewAudit = user?.role === 'super_admin' || user?.role === 'admin';
+
   // Contracts State
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [showContractModal, setShowContractModal] = useState(false);
@@ -188,6 +207,8 @@ export function AdminPage() {
         setStaff(nextStaff);
       } else if (activeTab === 'accounts') {
         setAccountsIndex(await api.adminAccountsIndex());
+      } else if (activeTab === 'audit') {
+        setAuditLogs(await api.adminAuditLogs());
       } else if (activeTab === 'contracts') {
         const [nextContracts, nextOpportunities] = await Promise.all([
           api.adminListContracts(),
@@ -791,6 +812,7 @@ export function AdminPage() {
             ['students', 'Students Portal', GraduationCap],
             ['events', 'Events Manager', Calendar],
             ['products', 'Products', CheckSquare],
+            ...(canViewAudit ? [['audit', 'Audit Log', History] as [Tab, string, typeof Settings]] : []),
           ] as [Tab, string, typeof Settings][]).map(([tab, label, Icon]) => (
             <button
               key={tab}
@@ -821,6 +843,7 @@ export function AdminPage() {
               {activeTab === 'students' && 'Student Capstone Milestones'}
               {activeTab === 'events' && 'Public Programs & Events'}
               {activeTab === 'products' && 'Product Inventory Manager'}
+              {activeTab === 'audit' && 'Audit Trail'}
             </h1>
           </div>
           {activeTab === 'pipeline' && (
@@ -843,7 +866,7 @@ export function AdminPage() {
             <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{ZMW(forecast?.won_value ?? 0)}</span><p style={{ margin: '4px 0 0' }}>Won Value</p></article>
             <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{Math.round(forecast?.win_rate ?? 0)}%</span><p style={{ margin: '4px 0 0' }}>Win Rate ({forecast?.won_count ?? 0}W / {forecast?.lost_count ?? 0}L)</p></article>
           </div>
-        ) : activeTab === 'accounts' || activeTab === 'contracts' ? null : (
+        ) : activeTab === 'accounts' || activeTab === 'contracts' || activeTab === 'audit' ? null : (
           <div className="metric-row">
             <article><span>{metrics.enrollments}</span><p>Total Enrollments</p></article>
             <article><span>{metrics.students}</span><p>Active Students</p></article>
@@ -1885,6 +1908,36 @@ export function AdminPage() {
                           <span style={{ color: '#b0b4ab' }}>No file attached</span>
                         )}
                       </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Audit Log Tab */}
+        {activeTab === 'audit' && (
+          <section className="data-section" style={{ marginTop: 0 }}>
+            <p style={{ marginBottom: '16px' }}>Immutable trail of admin changes — who did what, and when. Showing the {auditLogs.length} most recent {auditLogs.length === 1 ? 'entry' : 'entries'}.</p>
+            {auditLogs.length === 0 ? (
+              <p className="empty">No audit entries yet — changes made in the portal will appear here.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: '8px' }}>
+                {auditLogs.map((a) => {
+                  const st = auditActionStyle(a.action);
+                  return (
+                    <article key={a.id} style={{ padding: '12px 14px', background: '#fff', border: '1px solid #dfe1da', borderRadius: '8px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ flexShrink: 0, minWidth: '74px', textAlign: 'center', fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em', padding: '4px 8px', borderRadius: '10px', background: st.bg, color: st.fg }}>{a.action}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', color: '#111512' }}>
+                          <strong>{a.actor_name || 'Unknown'}</strong>
+                          {a.actor_role && <span style={{ color: '#8a908a' }}> ({a.actor_role})</span>}
+                          <span style={{ color: '#5a625d' }}> · {a.entity}{a.entity_id ? ` · ${a.entity_id.slice(0, 8)}` : ''}</span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#8a908a', marginTop: '2px', fontFamily: 'monospace' }}>{a.method} {a.path} → {a.status}</div>
+                      </div>
+                      <span style={{ flexShrink: 0, fontSize: '11px', color: '#8a908a' }}>{new Date(a.created_at).toLocaleString()}</span>
                     </article>
                   );
                 })}
