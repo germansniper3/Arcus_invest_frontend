@@ -12,6 +12,7 @@ import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, Progr
 import DocumentView, { type DocumentKind } from '../components/DocumentView';
 import { NumberField } from '../components/NumberField';
 import { Modal } from '../components/Modal';
+import { SignContractModal } from '../components/SignContractModal';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit' | 'users' | 'gallery';
 
@@ -89,6 +90,12 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 const PAYMENT_METHOD_LABEL = (m: string) => PAYMENT_METHODS.find((x) => x.value === m)?.label ?? m;
 
 const CONTRACT_STATUSES: ContractStatus[] = ['draft', 'sent', 'signed', 'active', 'expired'];
+
+// Only PDFs can carry a stamped signature. Contracts also accept .doc/.docx,
+// which have no page geometry to place one on; the server refuses those too.
+function isSignablePdf(ct: Contract): boolean {
+  return ct.content_type.toLowerCase().includes('pdf') || ct.file_name.toLowerCase().endsWith('.pdf');
+}
 const CONTRACT_STATUS_STYLES: Record<ContractStatus, { bg: string; fg: string }> = {
   draft: { bg: '#eceee7', fg: '#5a625d' },
   sent: { bg: '#e2ecf8', fg: '#2a5788' },
@@ -251,6 +258,7 @@ export function AdminPage() {
   const [contractVersions, setContractVersions] = useState<DocumentVersion[]>([]);
   const [contractAccessLog, setContractAccessLog] = useState<DocumentAccessLog[]>([]);
   const [contractHistoryLoading, setContractHistoryLoading] = useState(false);
+  const [signingContract, setSigningContract] = useState<Contract | null>(null);
   const [savingContract, setSavingContract] = useState(false);
   const [downloadingContractId, setDownloadingContractId] = useState<string | null>(null);
   const NIL_UUID = '00000000-0000-0000-0000-000000000000';
@@ -2498,6 +2506,22 @@ export function AdminPage() {
                         ) : (
                           <span style={{ color: '#b0b4ab' }}>No file attached</span>
                         )}
+                        {/* Signing is offered only where it can actually succeed:
+                            a sent contract with a PDF attached. The server
+                            enforces the same rules regardless. */}
+                        {ct.status === 'sent' && ct.has_file && isSignablePdf(ct) && can('contracts', 'update') && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSigningContract(ct); }}
+                            style={{ background: '#5f7c29', color: '#fff', minHeight: '28px', fontSize: '11px', padding: '0 10px', borderRadius: '4px', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <ScrollText size={11} /> Sign
+                          </button>
+                        )}
+                        {ct.status === 'signed' && (
+                          <span style={{ color: '#35520f', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <CheckCircle2 size={12} /> Signed
+                          </span>
+                        )}
                       </div>
                     </article>
                   );
@@ -3583,6 +3607,13 @@ export function AdminPage() {
               </div>
             )}
         </Modal>
+
+      <SignContractModal
+        open={signingContract !== null}
+        contract={signingContract}
+        onClose={() => setSigningContract(null)}
+        onSigned={() => { void api.adminListContracts().then(setContracts).catch(() => { /* the toast already reported it */ }); }}
+      />
     </main>
   );
 }

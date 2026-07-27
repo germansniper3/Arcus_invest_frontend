@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -250,6 +250,12 @@ export const api = {
     downloadBlob(`/admin/contracts/${id}/versions/${versionId}/file`, fileName),
   adminContractAccessLog: (id: string) =>
     request<DocumentAccessLog[]>(`/admin/contracts/${id}/access-log`),
+  adminSignContract: (id: string, body: { image: string; page: number; x: number; y: number; width_frac: number; save_signature: boolean }) =>
+    request<{ contract: Contract; signature: ContractSignature }>(`/admin/contracts/${id}/sign`, { method: 'POST', body: JSON.stringify(body) }),
+  adminContractSignatures: (id: string) =>
+    request<ContractSignature[]>(`/admin/contracts/${id}/signatures`),
+  adminMySignature: () => request<{ image: string }>('/admin/contracts/my-signature'),
+  adminDeleteMySignature: () => request<any>('/admin/contracts/my-signature', { method: 'DELETE' }),
   adminCreateOpportunity: (body: Partial<Opportunity>) =>
     request<Opportunity>('/admin/opportunities', { method: 'POST', body: JSON.stringify(body) }),
   adminUpdateOpportunity: (id: string, body: Partial<Opportunity>) =>

@@ -418,6 +418,30 @@ export interface DocumentVersion {
   uploaded_by: string;
 }
 
+/**
+ * The evidence record for one signing event. Records who signed and from
+ * where; it makes no claim about the legal status of that signature.
+ */
+export interface ContractSignature {
+  id: string;
+  contract_id: string;
+  signer_id?: string | null;
+  signer_name: string;
+  signer_email: string;
+  signer_role: string;
+  page: number;
+  position_x: number;
+  position_y: number;
+  width_frac: number;
+  signed_at: string;
+  ip: string;
+  user_agent: string;
+  original_version_id?: string | null;
+  signed_version_id?: string | null;
+  original_hash: string;
+  signed_hash: string;
+}
+
 /** A recorded read of a stored file — who downloaded it, when, from where. */
 export interface DocumentAccessLog {
   id: string;
