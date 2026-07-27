@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, ArrowLeft, ShieldCheck, GraduationCap, LineChart } from 'lucide-react';
+import { Mail, Lock, ArrowLeft, ShieldCheck, GraduationCap, LineChart, ScrollText } from 'lucide-react';
 import { toast } from 'sonner';
 import { arcusImages } from '../lib/assets';
 import { useAuth } from '../lib/auth';
@@ -37,16 +37,37 @@ export function LoginPage() {
           <p className="eyebrow">Secure workspace</p>
           <h1>Your commercial operations, in one place.</h1>
           <p>Sign in to manage sales pipeline, accounts, enrollment intake and capstone progress.</p>
-          <ul className="auth-points">
-            <li><LineChart size={18} /> Sales pipeline &amp; weighted forecasting</li>
-            <li><ShieldCheck size={18} /> Role-based, audited access</li>
-            <li><GraduationCap size={18} /> Innovation Hub &amp; capstone tracking</li>
-          </ul>
+          <div className="auth-cards">
+            <article>
+              <LineChart size={17} />
+              <strong>Pipeline</strong>
+              <span>Deals, forecasting and account rollups</span>
+            </article>
+            <article>
+              <ScrollText size={17} />
+              <strong>Contracts</strong>
+              <span>Renewals, quotes, invoices and receipts</span>
+            </article>
+            <article>
+              <GraduationCap size={17} />
+              <strong>Innovation Hub</strong>
+              <span>Enrollment intake and capstone milestones</span>
+            </article>
+            <article>
+              <ShieldCheck size={17} />
+              <strong>Audited access</strong>
+              <span>Per-role permissions on every action</span>
+            </article>
+          </div>
         </div>
       </section>
 
       <section className="auth-panel">
         <form className="auth-card" onSubmit={submit}>
+          <div className="auth-card-brand">
+            <img src={arcusImages.logo} alt="" />
+            <span>Arcus Investments</span>
+          </div>
           <div>
             <h2>Welcome back</h2>
             <p className="sub">Staff and students only. Enter your credentials to continue.</p>

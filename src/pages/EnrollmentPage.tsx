@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { motion } from 'framer-motion';
-import { GraduationCap, Layers, Rocket, ShieldCheck } from 'lucide-react';
+import { GraduationCap, Layers, Rocket, ShieldCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { ChatWidget } from '../components/ChatWidget';
 import { Nav } from '../components/Nav';
@@ -14,9 +14,19 @@ const tiers = [
   { name: 'Professional', body: 'For advanced projects and industry-ready engineering solutions.' }
 ];
 
+const emptyForm = { full_name: '', email: '', phone: '', tier: 'Explorer', interests: '', project_idea: '' };
+
 export function EnrollmentPage() {
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', tier: 'Explorer', interests: '', project_idea: '' });
+  const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
+
+  // Anything typed beyond the default tier counts as work in progress.
+  const isDirty = Object.entries(form).some(([k, v]) => k !== 'tier' && v.trim() !== '') || form.tier !== emptyForm.tier;
+
+  function clearForm() {
+    if (!confirm('Clear this application? Anything you have typed will be lost.')) return;
+    setForm(emptyForm);
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -24,7 +34,7 @@ export function EnrollmentPage() {
     try {
       await api.createEnrollment(form);
       toast.success('Enrollment application submitted successfully!');
-      setForm({ full_name: '', email: '', phone: '', tier: 'Explorer', interests: '', project_idea: '' });
+      setForm(emptyForm);
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit enrollment');
     } finally {
@@ -72,9 +82,16 @@ export function EnrollmentPage() {
             <input placeholder="Phone / WhatsApp" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
             <input placeholder="Technical interests" value={form.interests} onChange={(e) => setForm({ ...form, interests: e.target.value })} />
             <textarea required placeholder="Project idea or capstone direction" value={form.project_idea} onChange={(e) => setForm({ ...form, project_idea: e.target.value })} />
-            <button className="primary" disabled={submitting}>
-              {submitting ? 'Submitting...' : 'Submit enrollment'}
-            </button>
+            <div className="enroll-actions">
+              <button className="primary" disabled={submitting}>
+                {submitting ? 'Submitting...' : 'Submit enrollment'}
+              </button>
+              {isDirty && !submitting && (
+                <button type="button" className="enroll-clear" onClick={clearForm}>
+                  <X size={15} /> Clear form
+                </button>
+              )}
+            </div>
           </form>
         </section>
       </main>

@@ -495,7 +495,7 @@ export function AdminPage() {
 
   function openEditRoleModal(role: CustomRole) {
     setEditingRole(role);
-    const permMap = new Map(role.permissions.map((p) => [p.resource, p]));
+    const permMap = new Map((role.permissions ?? []).map((p) => [p.resource, p]));
     const fullPerms: CustomRolePermission[] = ALL_RESOURCES.map((r) => {
       const existing = permMap.get(r);
       if (existing) return { ...existing };
@@ -2544,9 +2544,9 @@ export function AdminPage() {
                     <span>Password: <strong style={{ color: '#111512' }}>{emailStatus.has_password ? 'set' : 'not set'}</strong></span>
                     <span>Claim-link base: <strong style={{ color: '#111512' }}>{emailStatus.frontend_url || '— not set —'}</strong></span>
                   </div>
-                  {emailStatus.issues.length > 0 && (
+                  {(emailStatus.issues ?? []).length > 0 && (
                     <ul style={{ margin: 0, paddingLeft: '18px', display: 'grid', gap: '4px' }}>
-                      {emailStatus.issues.map((issue) => (
+                      {(emailStatus.issues ?? []).map((issue) => (
                         <li key={issue} style={{ fontSize: '12px', color: '#a00' }}>{issue}</li>
                       ))}
                     </ul>
