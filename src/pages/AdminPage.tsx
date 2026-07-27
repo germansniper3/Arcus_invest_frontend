@@ -8,7 +8,7 @@ import {
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory, DocumentVersion, DocumentAccessLog } from '../types';
 import DocumentView, { type DocumentKind } from '../components/DocumentView';
 import { NumberField } from '../components/NumberField';
 import { Modal } from '../components/Modal';
@@ -248,6 +248,9 @@ export function AdminPage() {
   const emptyContract = { id: '', account_name: '', opportunity_id: '', title: '', status: 'draft' as ContractStatus, value: 0, start_date: '', renewal_date: '', notes: '' };
   const [contractForm, setContractForm] = useState(emptyContract);
   const [contractFile, setContractFile] = useState<File | null>(null);
+  const [contractVersions, setContractVersions] = useState<DocumentVersion[]>([]);
+  const [contractAccessLog, setContractAccessLog] = useState<DocumentAccessLog[]>([]);
+  const [contractHistoryLoading, setContractHistoryLoading] = useState(false);
   const [savingContract, setSavingContract] = useState(false);
   const [downloadingContractId, setDownloadingContractId] = useState<string | null>(null);
   const NIL_UUID = '00000000-0000-0000-0000-000000000000';
@@ -1195,9 +1198,29 @@ export function AdminPage() {
   }
 
   // --- Contract Handlers ---
+  // Loads the revision history and read log for a saved contract. Both are
+  // best-effort: a contract stays fully editable if either lookup fails.
+  async function loadContractHistory(id: string) {
+    setContractHistoryLoading(true);
+    try {
+      const [versions, access] = await Promise.all([
+        api.adminContractVersions(id),
+        api.adminContractAccessLog(id),
+      ]);
+      setContractVersions(versions);
+      setContractAccessLog(access);
+    } catch {
+      setContractVersions([]);
+      setContractAccessLog([]);
+    } finally {
+      setContractHistoryLoading(false);
+    }
+  }
   function openCreateContractModal() {
     setContractForm(emptyContract);
     setContractFile(null);
+    setContractVersions([]);
+    setContractAccessLog([]);
     setShowContractModal(true);
   }
   function openEditContractModal(ct: Contract) {
@@ -1209,6 +1232,9 @@ export function AdminPage() {
       notes: ct.notes,
     });
     setContractFile(null);
+    setContractVersions([]);
+    setContractAccessLog([]);
+    void loadContractHistory(ct.id);
     setShowContractModal(true);
   }
   async function saveContract(e: React.FormEvent) {
@@ -3485,7 +3511,7 @@ export function AdminPage() {
                   style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1', padding: '8px' }}
                 />
                 {contractForm.id && !contractFile && (
-                  <p style={{ fontSize: '11px', color: '#8a908a', margin: '4px 0 0' }}>Leave empty to keep the current file. Choosing a file replaces it.</p>
+                  <p style={{ fontSize: '11px', color: '#8a908a', margin: '4px 0 0' }}>Leave empty to keep the current file. Choosing a file adds a new version — the current one stays downloadable below.</p>
                 )}
               </div>
               <div>
@@ -3493,6 +3519,69 @@ export function AdminPage() {
                 <textarea value={contractForm.notes} onChange={(e) => setContractForm({ ...contractForm, notes: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '60px' }} />
               </div>
             </form>
+
+            {/* Version history & read log — only meaningful for a saved contract */}
+            {contractForm.id && (
+              <div style={{ marginTop: '18px', borderTop: '1px solid #e2e4dd', paddingTop: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <History size={16} color="#5f7c29" />
+                  <h3 style={{ margin: 0, fontSize: '15px' }}>Document History</h3>
+                  <span style={{ fontSize: '12px', color: '#8a908a' }}>
+                    {contractVersions.length} {contractVersions.length === 1 ? 'version' : 'versions'}
+                  </span>
+                </div>
+
+                {contractHistoryLoading ? (
+                  <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>Loading history…</p>
+                ) : contractVersions.length === 0 ? (
+                  <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>No document uploaded yet. Every upload is kept as a version — replacing a file never destroys the one before it.</p>
+                ) : (
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {contractVersions.map((v) => (
+                      <div key={v.id} style={{ background: '#f7f8f3', border: '1px solid #e2e4dd', borderRadius: '6px', padding: '9px 11px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                          <div style={{ fontSize: '13px', minWidth: 0 }}>
+                            <strong style={{ color: '#111512' }}>v{v.version}</strong>
+                            <span style={{ color: '#5a625d' }}> · {v.file_name || 'document'} · {formatFileSize(v.size)}</span>
+                            {/* Versions come back newest-first, so the head is the live one. */}
+                            {v.id === contractVersions[0]?.id && (
+                              <span style={{ marginLeft: '6px', fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 6px', borderRadius: '8px', background: '#e8f2dc', color: '#35520f' }}>Current</span>
+                            )}
+                          </div>
+                          <button type="button" onClick={() => api.downloadContractVersion(contractForm.id, v.id, v.file_name || 'contract').catch((err) => toast.error(err.message || 'Download failed'))} style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '4px', padding: '6px 10px', fontSize: '12px', color: '#111512', cursor: 'pointer', flexShrink: 0 }}>
+                            Download
+                          </button>
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#8a908a', marginTop: '4px' }}>
+                          {new Date(v.created_at).toLocaleString()}{v.uploaded_by ? ` · ${v.uploaded_by}` : ''}
+                        </div>
+                        {/* The hash is what proves this file was not swapped, so show it
+                            in full rather than truncating it to look tidy. */}
+                        {v.file_hash && (
+                          <div style={{ fontSize: '10px', color: '#8a908a', marginTop: '3px', wordBreak: 'break-all', fontFamily: 'ui-monospace, monospace' }}>
+                            SHA256 {v.file_hash}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {contractAccessLog.length > 0 && (
+                  <div style={{ marginTop: '14px' }}>
+                    <div style={{ fontSize: '12px', color: '#5a625d', fontWeight: 700, marginBottom: '6px' }}>Who has downloaded this</div>
+                    <div style={{ display: 'grid', gap: '4px' }}>
+                      {contractAccessLog.slice(0, 10).map((a) => (
+                        <div key={a.id} style={{ fontSize: '11px', color: '#5a625d' }}>
+                          {new Date(a.created_at).toLocaleString()} · <strong style={{ color: '#111512' }}>{a.actor_name || 'unknown'}</strong>
+                          {a.ip ? ` · ${a.ip}` : ''}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
         </Modal>
     </main>
   );

@@ -399,6 +399,36 @@ export interface Contract {
   content_type: string;
   size: number;
   has_file: boolean;
+  /** SHA256 of the current file, lowercase hex. Empty for pre-versioning uploads. */
+  file_hash: string;
+  current_version: number;
+}
+
+/** One stored revision of a document. Uploads append rather than overwrite. */
+export interface DocumentVersion {
+  id: string;
+  created_at: string;
+  version: number;
+  file_name: string;
+  content_type: string;
+  size: number;
+  file_hash: string;
+  note: string;
+  uploaded_by_id?: string | null;
+  uploaded_by: string;
+}
+
+/** A recorded read of a stored file — who downloaded it, when, from where. */
+export interface DocumentAccessLog {
+  id: string;
+  created_at: string;
+  version_id?: string | null;
+  actor_id?: string | null;
+  actor_name: string;
+  actor_role: string;
+  action: string;
+  ip: string;
+  user_agent: string;
 }
 
 export interface PipelineForecast {

@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -244,6 +244,12 @@ export const api = {
   },
   downloadContract: (id: string, fileName: string) =>
     downloadBlob(`/admin/contracts/${id}/file`, fileName),
+  adminContractVersions: (id: string) =>
+    request<DocumentVersion[]>(`/admin/contracts/${id}/versions`),
+  downloadContractVersion: (id: string, versionId: string, fileName: string) =>
+    downloadBlob(`/admin/contracts/${id}/versions/${versionId}/file`, fileName),
+  adminContractAccessLog: (id: string) =>
+    request<DocumentAccessLog[]>(`/admin/contracts/${id}/access-log`),
   adminCreateOpportunity: (body: Partial<Opportunity>) =>
     request<Opportunity>('/admin/opportunities', { method: 'POST', body: JSON.stringify(body) }),
   adminUpdateOpportunity: (id: string, body: Partial<Opportunity>) =>
