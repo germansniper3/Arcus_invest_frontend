@@ -10,6 +10,7 @@ import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE }
 import { useAuth } from '../lib/auth';
 import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory } from '../types';
 import DocumentView, { type DocumentKind } from '../components/DocumentView';
+import { NumberField } from '../components/NumberField';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit' | 'users' | 'gallery';
 
@@ -2788,7 +2789,7 @@ export function AdminPage() {
               </div>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Seating Capacity</label>
-                <input type="number" required value={eventForm.capacity} onChange={(e) => setEventForm({ ...eventForm, capacity: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                <NumberField required value={eventForm.capacity} onChange={(capacity) => setEventForm({ ...eventForm, capacity })} />
               </div>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Event Image URL (optional — paste a direct image link)</label>
@@ -2878,7 +2879,7 @@ export function AdminPage() {
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', color: '#5a625d' }}>Position (lower shows first)</label>
-                  <input type="number" min="0" value={galleryForm.position} onChange={(e) => setGalleryForm({ ...galleryForm, position: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                  <NumberField min="0" value={galleryForm.position} onChange={(position) => setGalleryForm({ ...galleryForm, position })} />
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3116,11 +3117,11 @@ export function AdminPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '12px', color: '#5a625d' }}>Price (ZMW)</label>
-                  <input type="number" required value={productForm.price} onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                  <NumberField required value={productForm.price} onChange={(price) => setProductForm({ ...productForm, price })} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', color: '#5a625d' }}>Stock Quantity</label>
-                  <input type="number" required value={productForm.stock} onChange={(e) => setProductForm({ ...productForm, stock: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                  <NumberField required value={productForm.stock} onChange={(stock) => setProductForm({ ...productForm, stock })} />
                 </div>
               </div>
               <div>
@@ -3226,11 +3227,11 @@ export function AdminPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '12px', color: '#5a625d' }}>Deal Value (ZMW)</label>
-                  <input type="number" min="0" value={opportunityForm.deal_value} onChange={(e) => setOpportunityForm({ ...opportunityForm, deal_value: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                  <NumberField min="0" value={opportunityForm.deal_value} onChange={(deal_value) => setOpportunityForm({ ...opportunityForm, deal_value })} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', color: '#5a625d' }}>Probability (%)</label>
-                  <input type="number" min="0" max="100" value={opportunityForm.probability} onChange={(e) => setOpportunityForm({ ...opportunityForm, probability: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                  <NumberField min="0" max="100" value={opportunityForm.probability} onChange={(probability) => setOpportunityForm({ ...opportunityForm, probability })} />
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
@@ -3296,8 +3297,8 @@ export function AdminPage() {
                     {opportunityForm.line_items.map((li, i) => (
                       <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 66px 108px auto', gap: '6px', alignItems: 'center' }}>
                         <input placeholder="Description" value={li.description} onChange={(e) => updateLineItem(i, { description: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '8px 10px' }} />
-                        <input type="number" min="0" step="1" title="Quantity" value={li.quantity} onChange={(e) => updateLineItem(i, { quantity: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '8px 10px' }} />
-                        <input type="number" min="0" title="Unit price (ZMW)" value={li.unit_price} onChange={(e) => updateLineItem(i, { unit_price: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '8px 10px' }} />
+                        <NumberField min="0" step="1" title="Quantity" value={li.quantity} onChange={(quantity) => updateLineItem(i, { quantity })} style={{ fontSize: '13px', padding: '8px 10px' }} />
+                        <NumberField min="0" title="Unit price (ZMW)" value={li.unit_price} onChange={(unit_price) => updateLineItem(i, { unit_price })} style={{ fontSize: '13px', padding: '8px 10px' }} />
                         <button type="button" onClick={() => removeLineItem(i)} title="Remove" style={{ background: '#f7f8f3', border: '1px solid #e2e4dd', borderRadius: '4px', padding: '8px', cursor: 'pointer', color: '#a00', display: 'inline-flex' }}>
                           <X size={13} />
                         </button>
@@ -3402,7 +3403,7 @@ export function AdminPage() {
 
                 {can('payments', 'create') && (
                 <form onSubmit={recordPayment} style={{ display: 'grid', gridTemplateColumns: '120px 150px 1fr auto', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
-                  <input type="number" min="0" placeholder="Amount" value={paymentForm.amount || ''} onChange={(e) => setPaymentForm({ ...paymentForm, amount: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '9px 10px' }} />
+                  <NumberField min="0" placeholder="Amount" value={paymentForm.amount} onChange={(amount) => setPaymentForm({ ...paymentForm, amount })} style={{ fontSize: '13px', padding: '9px 10px' }} />
                   <select value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value as PaymentMethod })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '9px 10px' }}>
                     {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                   </select>
@@ -3494,7 +3495,7 @@ export function AdminPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '12px', color: '#5a625d' }}>Value (ZMW)</label>
-                  <input type="number" min="0" value={contractForm.value} onChange={(e) => setContractForm({ ...contractForm, value: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                  <NumberField min="0" value={contractForm.value} onChange={(value) => setContractForm({ ...contractForm, value })} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', color: '#5a625d' }}>Start Date</label>
