@@ -1248,22 +1248,22 @@ export function AdminPage() {
               {activeTab === 'users' && 'Users & Email Delivery'}
             </h1>
           </div>
-          {activeTab === 'pipeline' && (
+          {activeTab === 'pipeline' && can('opportunities', 'create') && (
             <button onClick={openCreateOpportunityModal} className="primary" style={{ minHeight: '40px' }}>
               <Plus size={16} /> New Opportunity
             </button>
           )}
-          {activeTab === 'enrollments' && (
+          {activeTab === 'enrollments' && can('enrollments', 'create') && (
             <button onClick={() => { setEnrollmentForm(emptyEnrollmentForm); setShowEnrollmentModal(true); }} className="primary" style={{ minHeight: '40px' }}>
               <Plus size={16} /> New Enrollment
             </button>
           )}
-          {activeTab === 'users' && (
+          {activeTab === 'users' && can('users', 'create') && (
             <button onClick={() => { setUserForm(emptyUser); setShowUserModal(true); }} className="primary" style={{ minHeight: '40px' }}>
               <Plus size={16} /> New Staff User
             </button>
           )}
-          {activeTab === 'contracts' && (
+          {activeTab === 'contracts' && can('contracts', 'create') && (
             <button onClick={openCreateContractModal} className="primary" style={{ minHeight: '40px' }}>
               <Plus size={16} /> New Contract
             </button>
@@ -1372,7 +1372,8 @@ export function AdminPage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
                         <label style={{ fontSize: '11px', color: '#5a625d', fontWeight: 'bold' }}>LEAD STATUS</label>
                         <select 
-                          value={selectedQuote.status} 
+                          value={selectedQuote.status}
+                          disabled={!can('quotes', 'update')}
                           onChange={(e) => updateQuoteStatus(selectedQuote, e.target.value)}
                           style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1', padding: '4px 8px', fontSize: '12px', borderRadius: '4px' }}
                         >
@@ -1420,6 +1421,7 @@ export function AdminPage() {
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <button
                           onClick={() => saveQuoteNotes(selectedQuote)}
+                          disabled={!can('quotes', 'update')}
                           className="primary"
                           style={{ minHeight: '36px', fontSize: '12px', padding: '0 16px' }}
                         >
@@ -1427,7 +1429,7 @@ export function AdminPage() {
                         </button>
                         <button
                           onClick={() => convertQuote(selectedQuote)}
-                          disabled={selectedQuote.status === 'converted'}
+                          disabled={selectedQuote.status === 'converted' || !can('quotes', 'create')}
                           style={{ minHeight: '36px', fontSize: '12px', padding: '0 16px', background: selectedQuote.status === 'converted' ? '#eef0ea' : '#111512', color: selectedQuote.status === 'converted' ? '#8a908a' : '#fff', border: 0, borderRadius: '8px', cursor: selectedQuote.status === 'converted' ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                         >
                           <Target size={14} /> {selectedQuote.status === 'converted' ? 'Converted' : 'Convert to opportunity'}
@@ -1465,8 +1467,9 @@ export function AdminPage() {
 
                       {/* Tier dropdown selection */}
                       <div>
-                        <select 
-                          value={item.tier} 
+                        <select
+                          value={item.tier}
+                          disabled={!can('enrollments', 'update')}
                           onChange={(e) => updateEnrollmentTier(item, e.target.value)}
                           style={{ color: '#111512', background: '#fff', border: '1px solid #d8dbd1', padding: '6px 10px', fontSize: '12px' }}
                         >
@@ -1478,8 +1481,9 @@ export function AdminPage() {
 
                       {/* Status select dropdown */}
                       <div>
-                        <select 
-                          value={item.status} 
+                        <select
+                          value={item.status}
+                          disabled={!can('enrollments', 'update')}
                           onChange={(e) => updateEnrollmentStatus(item, e.target.value)}
                           style={{ color: '#111512', background: '#fff', border: '1px solid #d8dbd1', padding: '6px 10px', fontSize: '12px' }}
                         >
@@ -1492,13 +1496,15 @@ export function AdminPage() {
                       </div>
 
                       <div>
-                        <button 
-                          onClick={() => generateInviteLink(item)} 
-                          className="primary" 
-                          style={{ minHeight: '34px', fontSize: '12px', padding: '0 12px', background: 'var(--accent)', color: '#11170e' }}
-                        >
-                          <UserPlus size={14} /> Invite Link
-                        </button>
+                        {can('enrollments', 'create') && (
+                          <button
+                            onClick={() => generateInviteLink(item)}
+                            className="primary"
+                            style={{ minHeight: '34px', fontSize: '12px', padding: '0 12px', background: 'var(--accent)', color: '#11170e' }}
+                          >
+                            <UserPlus size={14} /> Invite Link
+                          </button>
+                        )}
                       </div>
                     </article>
                   ))
@@ -1615,7 +1621,7 @@ export function AdminPage() {
                               />
                               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                                 <button onClick={() => setEditingMilestoneId(null)} style={{ background: '#eef0ea', color: '#111512', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Cancel</button>
-                                <button onClick={() => saveMilestoneUpdate(m.id)} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Save</button>
+                                <button onClick={() => saveMilestoneUpdate(m.id)} disabled={!can('students', 'update')} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Save</button>
                               </div>
                             </div>
                           ) : (
@@ -1671,7 +1677,7 @@ export function AdminPage() {
                         onChange={(e) => setNewFeedbackComment(e.target.value)} 
                         style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
                       />
-                      <button type="submit" className="primary" style={{ width: '44px', minHeight: '44px', padding: 0 }}>
+                      <button type="submit" disabled={!can('students', 'create')} className="primary" style={{ width: '44px', minHeight: '44px', padding: 0 }}>
                         <Send size={16} />
                       </button>
                     </form>
@@ -1717,7 +1723,7 @@ export function AdminPage() {
                                 />
                                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                                   <button onClick={() => setEditingReportId(null)} style={{ background: '#eef0ea', color: '#111512', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Cancel</button>
-                                  <button onClick={() => markReportReviewed(r.id)} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Mark reviewed</button>
+                                  <button onClick={() => markReportReviewed(r.id)} disabled={!can('students', 'update')} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Mark reviewed</button>
                                 </div>
                               </div>
                             ) : (
@@ -1772,10 +1778,10 @@ export function AdminPage() {
                                 />
                                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                                   <button onClick={() => setEditingExtensionId(null)} style={{ background: '#eef0ea', color: '#111512', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Cancel</button>
-                                  <button onClick={() => decideExtension(ext.id, 'denied')} style={{ background: '#ffe2e2', color: '#a00', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <button onClick={() => decideExtension(ext.id, 'denied')} disabled={!can('students', 'update')} style={{ background: '#ffe2e2', color: '#a00', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                     <ThumbsDown size={12} /> Deny
                                   </button>
-                                  <button onClick={() => decideExtension(ext.id, 'approved')} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <button onClick={() => decideExtension(ext.id, 'approved')} disabled={!can('students', 'update')} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                     <ThumbsUp size={12} /> Approve
                                   </button>
                                 </div>
@@ -1861,10 +1867,10 @@ export function AdminPage() {
                                     />
                                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                                       <button onClick={() => setEditingSubmissionId(null)} style={{ background: '#eef0ea', color: '#111512', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0 }}>Cancel</button>
-                                      <button onClick={() => reviewSubmission(latest.id, 'revise')} style={{ background: '#ffe2e2', color: '#a00', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                      <button onClick={() => reviewSubmission(latest.id, 'revise')} disabled={!can('students', 'update')} style={{ background: '#ffe2e2', color: '#a00', minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                         <ThumbsDown size={12} /> Request Revision
                                       </button>
-                                      <button onClick={() => reviewSubmission(latest.id, 'accepted')} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                      <button onClick={() => reviewSubmission(latest.id, 'accepted')} disabled={!can('students', 'update')} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                         <ThumbsUp size={12} /> Accept &amp; unlock next
                                       </button>
                                     </div>
@@ -1923,9 +1929,11 @@ export function AdminPage() {
             <section className="data-section" style={{ marginTop: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <h2>Public Events</h2>
-                <button onClick={openCreateEventModal} className="primary" style={{ minHeight: '36px', fontSize: '12px', padding: '0 12px' }}>
-                  <Plus size={14} /> New Event
-                </button>
+                {can('events', 'create') && (
+                  <button onClick={openCreateEventModal} className="primary" style={{ minHeight: '36px', fontSize: '12px', padding: '0 12px' }}>
+                    <Plus size={14} /> New Event
+                  </button>
+                )}
               </div>
               <div className="table">
                 {events.map((event) => (
@@ -1968,8 +1976,12 @@ export function AdminPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h3 style={{ margin: 0, fontSize: '18px' }}>{selectedEvent.title}</h3>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button onClick={() => openEditEventModal(selectedEvent)} style={{ background: '#eef0ea', border: 0, padding: 6, borderRadius: '4px', cursor: 'pointer' }}><Edit2 size={14} /></button>
-                        <button onClick={() => deleteEvent(selectedEvent.id)} style={{ background: '#ffe2e2', color: '#a00', border: 0, padding: 6, borderRadius: '4px', cursor: 'pointer' }}><Trash2 size={14} /></button>
+                        {can('events', 'update') && (
+                          <button onClick={() => openEditEventModal(selectedEvent)} style={{ background: '#eef0ea', border: 0, padding: 6, borderRadius: '4px', cursor: 'pointer' }}><Edit2 size={14} /></button>
+                        )}
+                        {can('events', 'delete') && (
+                          <button onClick={() => deleteEvent(selectedEvent.id)} style={{ background: '#ffe2e2', color: '#a00', border: 0, padding: 6, borderRadius: '4px', cursor: 'pointer' }}><Trash2 size={14} /></button>
+                        )}
                       </div>
                     </div>
                     <p style={{ fontSize: '12px', marginBlock: '8px', color: '#5a625d' }}>{selectedEvent.description}</p>
@@ -1983,9 +1995,11 @@ export function AdminPage() {
                   <article className="panel" style={{ padding: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                       <h3 style={{ margin: 0, fontSize: '16px' }}>Attendee Registrations ({eventReservations.length})</h3>
-                      <button onClick={() => setShowBroadcastModal(true)} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px' }}>
-                        <Mail size={14} /> Send Broadcast
-                      </button>
+                      {can('events', 'create') && (
+                        <button onClick={() => setShowBroadcastModal(true)} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px' }}>
+                          <Mail size={14} /> Send Broadcast
+                        </button>
+                      )}
                     </div>
                     <div style={{ display: 'grid', gap: '8px', maxHeight: '260px', overflowY: 'auto' }}>
                       {eventReservations.length === 0 ? (
@@ -2006,7 +2020,7 @@ export function AdminPage() {
                               }}>
                                 {res.status === 'confirmed' ? '✓ Confirmed' : '⏳ Pending'}
                               </span>
-                              {res.status === 'pending' && (
+                              {res.status === 'pending' && can('events', 'update') && (
                                 <button
                                   onClick={() => approveReservation(res.id)}
                                   style={{ background: 'var(--accent)', color: '#11170e', border: 0, padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap' }}
@@ -2032,9 +2046,11 @@ export function AdminPage() {
             <section className="data-section" style={{ marginTop: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <h2>Product Catalog</h2>
-                <button onClick={openCreateProductModal} className="primary" style={{ minHeight: '36px', fontSize: '12px', padding: '0 12px' }}>
-                  <Plus size={14} /> New Product
-                </button>
+                {can('products', 'create') && (
+                  <button onClick={openCreateProductModal} className="primary" style={{ minHeight: '36px', fontSize: '12px', padding: '0 12px' }}>
+                    <Plus size={14} /> New Product
+                  </button>
+                )}
               </div>
               <div className="table" style={{ display: 'grid', gap: '10px' }}>
                 {products.length === 0 ? (
@@ -2098,8 +2114,12 @@ export function AdminPage() {
                       <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#5a625d' }}>{selectedProduct.is_published ? '✓ Published on site' : '⏸ Draft — not public'}</p>
                     </div>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <button onClick={() => openEditProductModal(selectedProduct)} style={{ background: '#eef0ea', border: 0, padding: 6, borderRadius: '4px', cursor: 'pointer' }}><Edit2 size={14} /></button>
-                      <button onClick={() => deleteProduct(selectedProduct.id)} style={{ background: '#ffe2e2', color: '#a00', border: 0, padding: 6, borderRadius: '4px', cursor: 'pointer' }}><Trash2 size={14} /></button>
+                      {can('products', 'update') && (
+                        <button onClick={() => openEditProductModal(selectedProduct)} style={{ background: '#eef0ea', border: 0, padding: 6, borderRadius: '4px', cursor: 'pointer' }}><Edit2 size={14} /></button>
+                      )}
+                      {can('products', 'delete') && (
+                        <button onClick={() => deleteProduct(selectedProduct.id)} style={{ background: '#ffe2e2', color: '#a00', border: 0, padding: 6, borderRadius: '4px', cursor: 'pointer' }}><Trash2 size={14} /></button>
+                      )}
                     </div>
                   </div>
 
@@ -2177,6 +2197,7 @@ export function AdminPage() {
                             </div>
                             <select
                               value={o.stage}
+                              disabled={!can('opportunities', 'update')}
                               onClick={(e) => e.stopPropagation()}
                               onChange={(e) => moveOpportunityStage(o, e.target.value as OpportunityStage)}
                               style={{ fontSize: '12px', color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1', padding: '6px 8px', minHeight: 0 }}
@@ -2573,12 +2594,16 @@ export function AdminPage() {
                                 <span style={{ fontSize: '11px', color: '#b0b4ab' }}>—</span>
                               ) : (
                                 <div style={{ display: 'inline-flex', gap: '6px' }}>
-                                  <button onClick={() => toggleUserActive(u)} style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '4px', padding: '6px 10px', fontSize: '11px', color: '#111512', cursor: 'pointer' }}>
-                                    {u.is_active ? 'Deactivate' : 'Activate'}
-                                  </button>
-                                  <button onClick={() => deleteUser(u)} title="Delete permanently" style={{ background: '#fff', border: '1px solid #e2b4b4', borderRadius: '4px', padding: '6px', color: '#a00', cursor: 'pointer', display: 'inline-flex' }}>
-                                    <Trash2 size={13} />
-                                  </button>
+                                  {can('users', 'update') && (
+                                    <button onClick={() => toggleUserActive(u)} style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '4px', padding: '6px 10px', fontSize: '11px', color: '#111512', cursor: 'pointer' }}>
+                                      {u.is_active ? 'Deactivate' : 'Activate'}
+                                    </button>
+                                  )}
+                                  {can('users', 'delete') && (
+                                    <button onClick={() => deleteUser(u)} title="Delete permanently" style={{ background: '#fff', border: '1px solid #e2b4b4', borderRadius: '4px', padding: '6px', color: '#a00', cursor: 'pointer', display: 'inline-flex' }}>
+                                      <Trash2 size={13} />
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </td>
@@ -3095,10 +3120,12 @@ export function AdminPage() {
                 Weighted value: <strong style={{ color: '#5f7c29' }}>{ZMW((Number(opportunityForm.deal_value) || 0) * Number(opportunityForm.probability) / 100)}</strong>
               </div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                <button type="submit" className="primary" style={{ flex: 1, minHeight: '44px' }}>
-                  {opportunityForm.id ? 'Save Changes' : 'Create Opportunity'}
-                </button>
-                {opportunityForm.id && (
+                {can('opportunities', opportunityForm.id ? 'update' : 'create') && (
+                  <button type="submit" className="primary" style={{ flex: 1, minHeight: '44px' }}>
+                    {opportunityForm.id ? 'Save Changes' : 'Create Opportunity'}
+                  </button>
+                )}
+                {opportunityForm.id && can('opportunities', 'delete') && (
                   <button type="button" onClick={() => deleteOpportunity(opportunityForm.id)} style={{ background: '#fff', border: '1px solid #e2b4b4', color: '#a00', borderRadius: '8px', padding: '0 16px', minHeight: '44px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     <Trash2 size={15} /> Delete
                   </button>
@@ -3115,6 +3142,7 @@ export function AdminPage() {
                   <span style={{ fontSize: '12px', color: '#8a908a' }}>{activities.length} {activities.length === 1 ? 'entry' : 'entries'}</span>
                 </div>
 
+                {can('opportunities', 'create') && (
                 <form onSubmit={logActivity} style={{ display: 'grid', gap: '8px', marginBottom: '14px' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px', alignItems: 'start' }}>
                     <select value={activityForm.type} onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value as ActivityType })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '10px' }}>
@@ -3128,6 +3156,7 @@ export function AdminPage() {
                     </button>
                   </div>
                 </form>
+                )}
 
                 {activitiesLoading ? (
                   <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>Loading activity…</p>
@@ -3173,6 +3202,7 @@ export function AdminPage() {
                   </button>
                 </div>
 
+                {can('payments', 'create') && (
                 <form onSubmit={recordPayment} style={{ display: 'grid', gridTemplateColumns: '120px 150px 1fr auto', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
                   <input type="number" min="0" placeholder="Amount" value={paymentForm.amount || ''} onChange={(e) => setPaymentForm({ ...paymentForm, amount: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '9px 10px' }} />
                   <select value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value as PaymentMethod })} style={{ color: '#111512', background: '#f7f8f3', fontSize: '13px', padding: '9px 10px' }}>
@@ -3183,6 +3213,7 @@ export function AdminPage() {
                     {recordingPayment ? 'Saving…' : 'Record'}
                   </button>
                 </form>
+                )}
 
                 {payments.length === 0 ? (
                   <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>No payments recorded — a receipt becomes available once a payment is logged.</p>
@@ -3197,9 +3228,11 @@ export function AdminPage() {
                         </div>
                         <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                           <button type="button" onClick={() => openDocument('receipt', p)} style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '4px', padding: '6px 10px', fontSize: '12px', color: '#111512', cursor: 'pointer' }}>Receipt</button>
-                          <button type="button" onClick={() => deletePayment(p.id)} title="Remove" style={{ background: '#fff', border: '1px solid #e2e4dd', borderRadius: '4px', padding: '6px', cursor: 'pointer', color: '#a00', display: 'inline-flex' }}>
-                            <X size={13} />
-                          </button>
+                          {can('payments', 'delete') && (
+                            <button type="button" onClick={() => deletePayment(p.id)} title="Remove" style={{ background: '#fff', border: '1px solid #e2e4dd', borderRadius: '4px', padding: '6px', cursor: 'pointer', color: '#a00', display: 'inline-flex' }}>
+                              <X size={13} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -3291,10 +3324,12 @@ export function AdminPage() {
                 <textarea value={contractForm.notes} onChange={(e) => setContractForm({ ...contractForm, notes: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '60px' }} />
               </div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                <button type="submit" disabled={savingContract} className="primary" style={{ flex: 1, minHeight: '44px' }}>
-                  {savingContract ? 'Saving…' : contractForm.id ? 'Save Changes' : 'Create Contract'}
-                </button>
-                {contractForm.id && (
+                {can('contracts', contractForm.id ? 'update' : 'create') && (
+                  <button type="submit" disabled={savingContract} className="primary" style={{ flex: 1, minHeight: '44px' }}>
+                    {savingContract ? 'Saving…' : contractForm.id ? 'Save Changes' : 'Create Contract'}
+                  </button>
+                )}
+                {contractForm.id && can('contracts', 'delete') && (
                   <button type="button" onClick={() => deleteContract(contractForm.id)} style={{ background: '#fff', border: '1px solid #e2b4b4', color: '#a00', borderRadius: '8px', padding: '0 16px', minHeight: '44px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     <Trash2 size={15} /> Delete
                   </button>
