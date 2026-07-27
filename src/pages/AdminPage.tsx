@@ -11,6 +11,7 @@ import { useAuth } from '../lib/auth';
 import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory } from '../types';
 import DocumentView, { type DocumentKind } from '../components/DocumentView';
 import { NumberField } from '../components/NumberField';
+import { Modal } from '../components/Modal';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit' | 'users' | 'gallery';
 
@@ -2763,14 +2764,13 @@ export function AdminPage() {
       </section>
 
       {/* Create / Edit Event Modal */}
-      {showEventModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0, fontSize: '22px' }}>{eventForm.id ? 'Edit Event' : 'Create Event'}</h2>
-              <button onClick={() => setShowEventModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <form onSubmit={saveEvent} style={{ display: 'grid', gap: '12px' }}>
+      <Modal
+          open={showEventModal}
+          onClose={() => setShowEventModal(false)}
+          title={eventForm.id ? 'Edit Event' : 'Create Event'}
+          footer={<button type="submit" form="event-form" className="primary" style={{ minHeight: '44px', padding: '0 20px' }}>{eventForm.id ? 'Update Event' : 'Create Event'}</button>}
+        >
+            <form id="event-form" onSubmit={saveEvent} style={{ display: 'grid', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Event Title</label>
                 <input required value={eventForm.title} onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
@@ -2804,24 +2804,18 @@ export function AdminPage() {
                 <input type="checkbox" checked={eventForm.is_published} onChange={(e) => setEventForm({ ...eventForm, is_published: e.target.checked })} style={{ width: 'auto' }} />
                 <label style={{ fontSize: '13px', color: '#5a625d' }}>Publish Event immediately</label>
               </div>
-              <button type="submit" className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '12px' }}>
-                {eventForm.id ? 'Update Event' : 'Create Event'}
-              </button>
             </form>
-          </div>
-        </div>
-      )}
+        </Modal>
 
       {/* Broadcast Modal */}
-      {showBroadcastModal && selectedEvent && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0, fontSize: '20px' }}>Broadcast to {selectedEvent.title} attendees</h2>
-              <button onClick={() => setShowBroadcastModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <p style={{ fontSize: '12px', color: '#5a625d', margin: 0 }}>This will dispatch an announcement/update email to all {eventReservations.filter((r) => r.status === 'confirmed').length} confirmed seat reservation(s).</p>
-            <form onSubmit={sendBroadcast} style={{ display: 'grid', gap: '12px' }}>
+      <Modal
+          open={showBroadcastModal && !!selectedEvent}
+          onClose={() => setShowBroadcastModal(false)}
+          title={`Broadcast to ${selectedEvent?.title ?? ''} attendees`}
+          description={`This will dispatch an announcement/update email to all ${eventReservations.filter((r) => r.status === 'confirmed').length} confirmed seat reservation(s).`}
+          footer={<button type="submit" form="broadcast-form" className="primary" style={{ minHeight: '44px', padding: '0 20px' }}>Send Broadcast <Send size={14} /></button>}
+        >
+            <form id="broadcast-form" onSubmit={sendBroadcast} style={{ display: 'grid', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Subject</label>
                 <input required placeholder="Important update regarding..." value={broadcastForm.subject} onChange={(e) => setBroadcastForm({ ...broadcastForm, subject: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
@@ -2830,23 +2824,17 @@ export function AdminPage() {
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Message Body</label>
                 <textarea required placeholder="Write your announcement details here..." value={broadcastForm.message} onChange={(e) => setBroadcastForm({ ...broadcastForm, message: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '120px' }} />
               </div>
-              <button type="submit" className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '12px' }}>
-                Send Broadcast <Send size={14} />
-              </button>
             </form>
-          </div>
-        </div>
-      )}
+        </Modal>
 
       {/* Gallery Item Modal */}
-      {showGalleryModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0, fontSize: '22px' }}>{galleryForm.id ? 'Edit Gallery Item' : 'New Gallery Item'}</h2>
-              <button onClick={() => setShowGalleryModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <form onSubmit={saveGalleryItem} style={{ display: 'grid', gap: '12px' }}>
+      <Modal
+          open={showGalleryModal}
+          onClose={() => setShowGalleryModal(false)}
+          title={galleryForm.id ? 'Edit Gallery Item' : 'New Gallery Item'}
+          footer={<button type="submit" form="gallery-form" disabled={savingGallery || uploadingGalleryImage} className="primary" style={{ minHeight: '44px', padding: '0 20px' }}>{savingGallery ? 'Saving…' : galleryForm.id ? 'Save Changes' : 'Add to Gallery'}</button>}
+        >
+            <form id="gallery-form" onSubmit={saveGalleryItem} style={{ display: 'grid', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Photo</label>
                 {galleryForm.image_url && (
@@ -2886,24 +2874,18 @@ export function AdminPage() {
                 <input type="checkbox" checked={galleryForm.is_published} onChange={(e) => setGalleryForm({ ...galleryForm, is_published: e.target.checked })} style={{ width: 'auto' }} />
                 <label style={{ fontSize: '13px', color: '#5a625d' }}>Show on the public site</label>
               </div>
-              <button type="submit" disabled={savingGallery || uploadingGalleryImage} className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '4px' }}>
-                {savingGallery ? 'Saving…' : galleryForm.id ? 'Save Changes' : 'Add to Gallery'}
-              </button>
             </form>
-          </div>
-        </div>
-      )}
+        </Modal>
 
       {/* New Enrollment Modal (admin-initiated onboarding) */}
-      {showEnrollmentModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0, fontSize: '22px' }}>New Enrollment</h2>
-              <button onClick={() => setShowEnrollmentModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <p style={{ margin: 0, fontSize: '13px', color: '#5a625d' }}>Create an enrollment record directly, then send the onboarding invite from the list.</p>
-            <form onSubmit={saveEnrollment} style={{ display: 'grid', gap: '12px' }}>
+      <Modal
+          open={showEnrollmentModal}
+          onClose={() => setShowEnrollmentModal(false)}
+          title="New Enrollment"
+          description="Create an enrollment record directly, then send the onboarding invite from the list."
+          footer={<button type="submit" form="enrollment-form" disabled={savingEnrollment} className="primary" style={{ minHeight: '44px', padding: '0 20px' }}>{savingEnrollment ? 'Creating…' : 'Create Enrollment'}</button>}
+        >
+            <form id="enrollment-form" onSubmit={saveEnrollment} style={{ display: 'grid', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Full Name</label>
                 <input required value={enrollmentForm.full_name} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, full_name: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
@@ -2932,24 +2914,18 @@ export function AdminPage() {
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Notes (internal)</label>
                 <textarea value={enrollmentForm.notes} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, notes: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '70px' }} />
               </div>
-              <button type="submit" disabled={savingEnrollment} className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '4px' }}>
-                {savingEnrollment ? 'Creating…' : 'Create Enrollment'}
-              </button>
             </form>
-          </div>
-        </div>
-      )}
+        </Modal>
 
       {/* New Staff User Modal */}
-      {showUserModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0, fontSize: '22px' }}>New Staff User</h2>
-              <button onClick={() => setShowUserModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <p style={{ margin: 0, fontSize: '13px', color: '#5a625d' }}>Staff accounts only. Students are created by claiming an onboarding invitation.</p>
-            <form onSubmit={saveUser} style={{ display: 'grid', gap: '12px' }}>
+      <Modal
+          open={showUserModal}
+          onClose={() => setShowUserModal(false)}
+          title="New Staff User"
+          description="Staff accounts only. Students are created by claiming an onboarding invitation."
+          footer={<button type="submit" form="user-form" disabled={savingUser} className="primary" style={{ minHeight: '44px', padding: '0 20px' }}>{savingUser ? 'Creating…' : 'Create User'}</button>}
+        >
+            <form id="user-form" onSubmit={saveUser} style={{ display: 'grid', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Full Name</label>
                 <input required value={userForm.full_name} onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
@@ -2978,23 +2954,18 @@ export function AdminPage() {
                   )}
                 </select>
               </div>
-              <button type="submit" disabled={savingUser} className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '4px' }}>
-                {savingUser ? 'Creating…' : 'Create User'}
-              </button>
             </form>
-          </div>
-        </div>
-      )}
+        </Modal>
 
       {/* Role Editor / Creator Modal */}
-      {showRoleModal && (
-        <div className="modal-overlay">
-          <div className="modal-card" style={{ width: 'min(720px, 100%)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0, fontSize: '20px' }}>{roleForm.id ? `Edit Role: ${roleForm.label}` : 'Create Custom Role'}</h2>
-              <button onClick={() => setShowRoleModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <form onSubmit={saveRole} style={{ display: 'grid', gap: '14px' }}>
+      <Modal
+          open={showRoleModal}
+          onClose={() => setShowRoleModal(false)}
+          title={roleForm.id ? `Edit Role: ${roleForm.label}` : 'Create Custom Role'}
+          width="min(720px, 100%)"
+          footer={<button type="submit" form="role-form" disabled={savingRole} className="primary" style={{ minHeight: '44px', padding: '0 20px' }}>{savingRole ? 'Saving…' : (roleForm.id ? 'Update Role' : 'Create Role')}</button>}
+        >
+            <form id="role-form" onSubmit={saveRole} style={{ display: 'grid', gap: '14px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '12px', color: '#5a625d' }}>Role Label (display name)</label>
@@ -3089,23 +3060,17 @@ export function AdminPage() {
                 </div>
               </div>
 
-              <button type="submit" disabled={savingRole} className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '4px' }}>
-                {savingRole ? 'Saving…' : (roleForm.id ? 'Update Role' : 'Create Role')}
-              </button>
             </form>
-          </div>
-        </div>
-      )}
+        </Modal>
 
       {/* Create / Edit Product Modal */}
-      {showProductModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0, fontSize: '22px' }}>{productForm.id ? 'Edit Product' : 'New Product'}</h2>
-              <button onClick={() => setShowProductModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <form onSubmit={saveProduct} style={{ display: 'grid', gap: '12px' }}>
+      <Modal
+          open={showProductModal}
+          onClose={() => setShowProductModal(false)}
+          title={productForm.id ? 'Edit Product' : 'New Product'}
+          footer={<button type="submit" form="product-form" className="primary" style={{ minHeight: '44px', padding: '0 20px' }}>{productForm.id ? 'Save Changes' : 'Create Product'}</button>}
+        >
+            <form id="product-form" onSubmit={saveProduct} style={{ display: 'grid', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Product Name</label>
                 <input required value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
@@ -3161,23 +3126,30 @@ export function AdminPage() {
                 <input type="checkbox" checked={productForm.is_published} onChange={(e) => setProductForm({ ...productForm, is_published: e.target.checked })} style={{ width: 'auto' }} />
                 <label style={{ fontSize: '13px', color: '#5a625d' }}>Publish on website</label>
               </div>
-              <button type="submit" className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '12px' }}>
-                {productForm.id ? 'Save Changes' : 'Create Product'}
-              </button>
             </form>
-          </div>
-        </div>
-      )}
+        </Modal>
 
       {/* Create / Edit Opportunity Modal */}
-      {showOpportunityModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0, fontSize: '22px' }}>{opportunityForm.id ? 'Edit Opportunity' : 'New Opportunity'}</h2>
-              <button onClick={() => setShowOpportunityModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <form onSubmit={saveOpportunity} style={{ display: 'grid', gap: '12px' }}>
+      <Modal
+          open={showOpportunityModal}
+          onClose={() => setShowOpportunityModal(false)}
+          title={opportunityForm.id ? 'Edit Opportunity' : 'New Opportunity'}
+          footer={
+            <>
+              {opportunityForm.id && can('opportunities', 'delete') && (
+                <button type="button" onClick={() => deleteOpportunity(opportunityForm.id)} style={{ background: '#fff', border: '1px solid #e2b4b4', color: '#a00', borderRadius: '8px', padding: '0 16px', minHeight: '44px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <Trash2 size={15} /> Delete
+                </button>
+              )}
+              {can('opportunities', opportunityForm.id ? 'update' : 'create') && (
+                <button type="submit" form="opportunity-form" className="primary" style={{ minHeight: '44px', padding: '0 20px' }}>
+                  {opportunityForm.id ? 'Save Changes' : 'Create Opportunity'}
+                </button>
+              )}
+            </>
+          }
+        >
+            <form id="opportunity-form" onSubmit={saveOpportunity} style={{ display: 'grid', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Opportunity Name</label>
                 <input required placeholder="e.g. Data Centre migration — Phase 1" value={opportunityForm.name} onChange={(e) => setOpportunityForm({ ...opportunityForm, name: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
@@ -3318,18 +3290,6 @@ export function AdminPage() {
               <div style={{ fontSize: '12px', color: '#5a625d', background: '#eef0ea', borderRadius: '6px', padding: '10px 12px' }}>
                 Weighted value: <strong style={{ color: '#5f7c29' }}>{ZMW((Number(opportunityForm.deal_value) || 0) * Number(opportunityForm.probability) / 100)}</strong>
               </div>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                {can('opportunities', opportunityForm.id ? 'update' : 'create') && (
-                  <button type="submit" className="primary" style={{ flex: 1, minHeight: '44px' }}>
-                    {opportunityForm.id ? 'Save Changes' : 'Create Opportunity'}
-                  </button>
-                )}
-                {opportunityForm.id && can('opportunities', 'delete') && (
-                  <button type="button" onClick={() => deleteOpportunity(opportunityForm.id)} style={{ background: '#fff', border: '1px solid #e2b4b4', color: '#a00', borderRadius: '8px', padding: '0 16px', minHeight: '44px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    <Trash2 size={15} /> Delete
-                  </button>
-                )}
-              </div>
             </form>
 
             {/* Engagement log — only for a saved deal */}
@@ -3442,9 +3402,7 @@ export function AdminPage() {
                 )}
               </div>
             )}
-          </div>
-        </div>
-      )}
+        </Modal>
 
       {/* Document generator overlay (quotation / invoice / receipt) */}
       {docState && (
@@ -3461,14 +3419,26 @@ export function AdminPage() {
       )}
 
       {/* Create / Edit Contract Modal */}
-      {showContractModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0, fontSize: '22px' }}>{contractForm.id ? 'Edit Contract' : 'New Contract'}</h2>
-              <button onClick={() => setShowContractModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <form onSubmit={saveContract} style={{ display: 'grid', gap: '12px' }}>
+      <Modal
+          open={showContractModal}
+          onClose={() => setShowContractModal(false)}
+          title={contractForm.id ? 'Edit Contract' : 'New Contract'}
+          footer={
+            <>
+              {contractForm.id && can('contracts', 'delete') && (
+                <button type="button" onClick={() => deleteContract(contractForm.id)} style={{ background: '#fff', border: '1px solid #e2b4b4', color: '#a00', borderRadius: '8px', padding: '0 16px', minHeight: '44px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <Trash2 size={15} /> Delete
+                </button>
+              )}
+              {can('contracts', contractForm.id ? 'update' : 'create') && (
+                <button type="submit" form="contract-form" disabled={savingContract} className="primary" style={{ minHeight: '44px', padding: '0 20px' }}>
+                  {savingContract ? 'Saving…' : contractForm.id ? 'Save Changes' : 'Create Contract'}
+                </button>
+              )}
+            </>
+          }
+        >
+            <form id="contract-form" onSubmit={saveContract} style={{ display: 'grid', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Contract Title</label>
                 <input required placeholder="e.g. Managed Services Agreement 2026" value={contractForm.title} onChange={(e) => setContractForm({ ...contractForm, title: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
@@ -3522,22 +3492,8 @@ export function AdminPage() {
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Notes</label>
                 <textarea value={contractForm.notes} onChange={(e) => setContractForm({ ...contractForm, notes: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '60px' }} />
               </div>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                {can('contracts', contractForm.id ? 'update' : 'create') && (
-                  <button type="submit" disabled={savingContract} className="primary" style={{ flex: 1, minHeight: '44px' }}>
-                    {savingContract ? 'Saving…' : contractForm.id ? 'Save Changes' : 'Create Contract'}
-                  </button>
-                )}
-                {contractForm.id && can('contracts', 'delete') && (
-                  <button type="button" onClick={() => deleteContract(contractForm.id)} style={{ background: '#fff', border: '1px solid #e2b4b4', color: '#a00', borderRadius: '8px', padding: '0 16px', minHeight: '44px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    <Trash2 size={15} /> Delete
-                  </button>
-                )}
-              </div>
             </form>
-          </div>
-        </div>
-      )}
+        </Modal>
     </main>
   );
 }
