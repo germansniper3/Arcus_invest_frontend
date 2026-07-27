@@ -2649,7 +2649,7 @@ export function AdminPage() {
             {/* Email delivery status */}
             <section className="data-section" style={{ marginTop: 0 }}>
               <h2>Email Delivery</h2>
-              <p style={{ marginBottom: '16px' }}>Onboarding invitations and event broadcasts are sent over SMTP. Send a test to your own address to prove delivery without emailing students.</p>
+              <p style={{ marginBottom: '16px' }}>Onboarding invitations and event broadcasts are sent over the Resend API or SMTP, whichever is configured. Send a test to your own address to prove delivery without emailing students.</p>
               {!emailStatus ? (
                 <p style={{ fontSize: '13px', color: '#8a908a' }}>Checking…</p>
               ) : (
@@ -2658,16 +2658,32 @@ export function AdminPage() {
                     <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', padding: '4px 10px', borderRadius: '10px', background: emailStatus.looks_healthy ? '#e8f2dc' : '#ffe2e2', color: emailStatus.looks_healthy ? '#35520f' : '#a00' }}>
                       {emailStatus.configured ? (emailStatus.looks_healthy ? 'Configured' : 'Needs attention') : 'Not configured'}
                     </span>
+                    {emailStatus.configured && (
+                      <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', padding: '4px 10px', borderRadius: '10px', background: '#eef0ea', color: '#5a625d' }}>
+                        via {emailStatus.transport === 'resend' ? 'Resend API' : 'SMTP'}
+                      </span>
+                    )}
                     <button onClick={sendTestEmail} disabled={sendingTestEmail || !emailStatus.configured} style={{ background: '#eef0ea', border: '1px solid #dfe1da', borderRadius: '6px', padding: '8px 14px', fontSize: '13px', color: '#111512', cursor: emailStatus.configured ? 'pointer' : 'not-allowed', opacity: emailStatus.configured ? 1 : 0.5, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                       <Mail size={14} /> {sendingTestEmail ? 'Sending…' : 'Send test email to myself'}
                     </button>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', fontSize: '12px', color: '#5a625d' }}>
-                    <span>Host: <strong style={{ color: '#111512' }}>{emailStatus.host || '— not set —'}</strong></span>
-                    <span>Port: <strong style={{ color: '#111512' }}>{emailStatus.port || '— not set —'}</strong></span>
+                    {/* SMTP host/port/credentials are inert when the API transport is
+                        in use, so showing them would only invite false diagnoses. */}
+                    {emailStatus.transport === 'resend' ? (
+                      <>
+                        <span>Transport: <strong style={{ color: '#111512' }}>Resend HTTPS API</strong></span>
+                        <span>API key: <strong style={{ color: '#111512' }}>{emailStatus.has_api_key ? 'set' : 'not set'}</strong></span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Host: <strong style={{ color: '#111512' }}>{emailStatus.host || '— not set —'}</strong></span>
+                        <span>Port: <strong style={{ color: '#111512' }}>{emailStatus.port || '— not set —'}</strong></span>
+                        <span>Username: <strong style={{ color: '#111512' }}>{emailStatus.has_username ? 'set' : 'not set'}</strong></span>
+                        <span>Password: <strong style={{ color: '#111512' }}>{emailStatus.has_password ? 'set' : 'not set'}</strong></span>
+                      </>
+                    )}
                     <span>From: <strong style={{ color: '#111512' }}>{emailStatus.from || '— not set —'}</strong></span>
-                    <span>Username: <strong style={{ color: '#111512' }}>{emailStatus.has_username ? 'set' : 'not set'}</strong></span>
-                    <span>Password: <strong style={{ color: '#111512' }}>{emailStatus.has_password ? 'set' : 'not set'}</strong></span>
                     <span>Claim-link base: <strong style={{ color: '#111512' }}>{emailStatus.frontend_url || '— not set —'}</strong></span>
                   </div>
                   {(emailStatus.issues ?? []).length > 0 && (

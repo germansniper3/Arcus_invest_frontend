@@ -283,11 +283,14 @@ export interface Opportunity {
 
 export interface EmailStatus {
   configured: boolean;
+  /** Which transport will carry outbound mail. 'resend' uses the HTTPS API. */
+  transport: 'resend' | 'smtp' | 'none';
   host: string;
   port: string;
   from: string;
   has_username: boolean;
   has_password: boolean;
+  has_api_key: boolean;
   frontend_url: string;
   issues: string[];
   looks_healthy: boolean;
