@@ -3,15 +3,15 @@ import {
   LogOut, RefreshCcw, UserPlus, FileText, Calendar,
   Send, CheckSquare, Plus, Edit2, Trash2,
   Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
-  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History, Sparkles, Users
+  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History, Sparkles, Users, Image as ImageIcon
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory } from '../types';
 import DocumentView, { type DocumentKind } from '../components/DocumentView';
 
-type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit' | 'users';
+type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit' | 'users' | 'gallery';
 
 const ROLE_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
   super_admin: { bg: '#e7dff2', fg: '#5b3a8a', label: 'Super Admin' },
@@ -201,6 +201,14 @@ export function AdminPage() {
     return perms[res]?.[act] === true;
   };
 
+  // Gallery State
+  const [gallery, setGallery] = useState<GalleryItem[]>([]);
+  const [showGalleryModal, setShowGalleryModal] = useState(false);
+  const emptyGalleryItem = { id: '', title: '', caption: '', category: 'Electronics' as GalleryCategory, image_url: '', position: 0, is_published: true };
+  const [galleryForm, setGalleryForm] = useState(emptyGalleryItem);
+  const [savingGallery, setSavingGallery] = useState(false);
+  const [uploadingGalleryImage, setUploadingGalleryImage] = useState(false);
+
   // Audit trail State
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const canViewAudit = can('audit');
@@ -280,6 +288,8 @@ export function AdminPage() {
         setStaff(nextStaff);
       } else if (activeTab === 'accounts') {
         setAccountsIndex(await api.adminAccountsIndex());
+      } else if (activeTab === 'gallery') {
+        setGallery(await api.adminListGallery());
       } else if (activeTab === 'audit') {
         setAuditLogs(await api.adminAuditLogs());
       } else if (activeTab === 'users') {
@@ -325,7 +335,7 @@ export function AdminPage() {
   const TAB_RESOURCE: Partial<Record<Tab, PermissionResource>> = {
     pipeline: 'opportunities', accounts: 'accounts', contracts: 'contracts',
     enrollments: 'enrollments', students: 'students', events: 'events',
-    products: 'products', users: 'users', audit: 'audit',
+    products: 'products', users: 'users', audit: 'audit', gallery: 'gallery',
   };
   useEffect(() => {
     const needed = TAB_RESOURCE[activeTab];
@@ -597,6 +607,73 @@ export function AdminPage() {
       loadData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete role');
+    }
+  }
+
+  // --- Gallery handlers ---
+  function openEditGalleryModal(item: GalleryItem) {
+    setGalleryForm({
+      id: item.id, title: item.title, caption: item.caption,
+      category: item.category, image_url: item.image_url,
+      position: item.position, is_published: item.is_published,
+    });
+    setShowGalleryModal(true);
+  }
+
+  async function uploadGalleryImage(file: File) {
+    if (file.size > MAX_PRODUCT_IMAGE_SIZE) {
+      toast.error('Image too large — the maximum size is 5 MB');
+      return;
+    }
+    setUploadingGalleryImage(true);
+    try {
+      const url = await api.uploadGalleryImage(file);
+      setGalleryForm((prev) => ({ ...prev, image_url: url }));
+      toast.success('Image uploaded');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to upload image');
+    } finally {
+      setUploadingGalleryImage(false);
+    }
+  }
+
+  async function saveGalleryItem(e: React.FormEvent) {
+    e.preventDefault();
+    if (!galleryForm.image_url) {
+      toast.error('Upload an image first');
+      return;
+    }
+    setSavingGallery(true);
+    try {
+      const payload = {
+        title: galleryForm.title, caption: galleryForm.caption,
+        category: galleryForm.category, image_url: galleryForm.image_url,
+        position: Number(galleryForm.position) || 0, is_published: galleryForm.is_published,
+      };
+      if (galleryForm.id) {
+        await api.adminUpdateGalleryItem(galleryForm.id, payload);
+        toast.success('Gallery item updated');
+      } else {
+        await api.adminCreateGalleryItem(payload);
+        toast.success('Gallery item added');
+      }
+      setShowGalleryModal(false);
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save gallery item');
+    } finally {
+      setSavingGallery(false);
+    }
+  }
+
+  async function deleteGalleryItem(item: GalleryItem) {
+    if (!confirm(`Remove "${item.title}" from the gallery?`)) return;
+    try {
+      await api.adminDeleteGalleryItem(item.id);
+      toast.success('Gallery item removed');
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to remove gallery item');
     }
   }
 
@@ -1210,6 +1287,7 @@ export function AdminPage() {
             ['students', 'Students Portal', GraduationCap, can('students')],
             ['events', 'Events Manager', Calendar, can('events')],
             ['products', 'Products', CheckSquare, can('products')],
+            ['gallery', 'Gallery', ImageIcon, can('gallery')],
             ['users', 'Users & Email', Users, can('users')],
             ['audit', 'Audit Log', History, canViewAudit],
           ] as [Tab, string, typeof Settings, boolean][])
@@ -1246,6 +1324,7 @@ export function AdminPage() {
               {activeTab === 'products' && 'Product Inventory Manager'}
               {activeTab === 'audit' && 'Audit Trail'}
               {activeTab === 'users' && 'Users & Email Delivery'}
+              {activeTab === 'gallery' && 'Work Gallery'}
             </h1>
           </div>
           {activeTab === 'pipeline' && can('opportunities', 'create') && (
@@ -1256,6 +1335,11 @@ export function AdminPage() {
           {activeTab === 'enrollments' && can('enrollments', 'create') && (
             <button onClick={() => { setEnrollmentForm(emptyEnrollmentForm); setShowEnrollmentModal(true); }} className="primary" style={{ minHeight: '40px' }}>
               <Plus size={16} /> New Enrollment
+            </button>
+          )}
+          {activeTab === 'gallery' && can('gallery', 'create') && (
+            <button onClick={() => { setGalleryForm(emptyGalleryItem); setShowGalleryModal(true); }} className="primary" style={{ minHeight: '40px' }}>
+              <Plus size={16} /> New Gallery Item
             </button>
           )}
           {activeTab === 'users' && can('users', 'create') && (
@@ -1278,7 +1362,7 @@ export function AdminPage() {
             <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{ZMW(forecast?.won_value ?? 0)}</span><p style={{ margin: '4px 0 0' }}>Won Value</p></article>
             <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{Math.round(forecast?.win_rate ?? 0)}%</span><p style={{ margin: '4px 0 0' }}>Win Rate ({forecast?.won_count ?? 0}W / {forecast?.lost_count ?? 0}L)</p></article>
           </div>
-        ) : activeTab === 'accounts' || activeTab === 'contracts' || activeTab === 'audit' || activeTab === 'users' ? null : (
+        ) : activeTab === 'accounts' || activeTab === 'contracts' || activeTab === 'audit' || activeTab === 'users' || activeTab === 'gallery' ? null : (
           <div className="metric-row">
             <article><span>{metrics.enrollments}</span><p>Total Enrollments</p></article>
             <article><span>{metrics.students}</span><p>Active Students</p></article>
@@ -2425,6 +2509,48 @@ export function AdminPage() {
           </section>
         )}
 
+        {/* Gallery Tab */}
+        {activeTab === 'gallery' && (
+          <section className="data-section" style={{ marginTop: 0 }}>
+            <p style={{ marginBottom: '16px' }}>
+              Photos of Arcus's work, shown in the Gallery section of the public site. Lower position numbers appear first. Unpublished items stay hidden from visitors.
+            </p>
+            {gallery.length === 0 ? (
+              <p className="empty">No gallery items yet — add one and it replaces the built-in placeholder photos on the public site.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
+                {gallery.map((item) => (
+                  <article key={item.id} style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '8px', overflow: 'hidden', display: 'grid', gap: 0, opacity: item.is_published ? 1 : 0.55, minWidth: 0 }}>
+                    <img src={item.image_url} alt={item.title} style={{ width: '100%', height: '150px', objectFit: 'cover', display: 'block', background: '#eceee7' }} />
+                    <div style={{ padding: '12px', display: 'grid', gap: '6px', minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'flex-start' }}>
+                        <strong style={{ fontSize: '14px', color: '#111512', minWidth: 0 }}>{item.title}</strong>
+                        <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', padding: '2px 7px', borderRadius: '10px', background: item.is_published ? '#e8f2dc' : '#eceee7', color: item.is_published ? '#35520f' : '#5a625d' }}>
+                          {item.is_published ? 'Live' : 'Draft'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#5a625d' }}>{item.category} · position {item.position}</div>
+                      {item.caption && <p style={{ margin: 0, fontSize: '12px', color: '#5a625d' }}>{item.caption}</p>}
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+                        {can('gallery', 'update') && (
+                          <button onClick={() => openEditGalleryModal(item)} style={{ background: '#eef0ea', border: '1px solid #dfe1da', borderRadius: '4px', padding: '6px 10px', fontSize: '11px', color: '#111512', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Edit2 size={12} /> Edit
+                          </button>
+                        )}
+                        {can('gallery', 'delete') && (
+                          <button onClick={() => deleteGalleryItem(item)} title="Remove" style={{ background: '#fff', border: '1px solid #e2b4b4', borderRadius: '4px', padding: '6px', color: '#a00', cursor: 'pointer', display: 'inline-flex' }}>
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Users & Email Tab */}
         {activeTab === 'users' && (
           <div style={{ display: 'grid', gap: '28px' }}>
@@ -2689,6 +2815,62 @@ export function AdminPage() {
               </div>
               <button type="submit" className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '12px' }}>
                 Send Broadcast <Send size={14} />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Gallery Item Modal */}
+      {showGalleryModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '22px' }}>{galleryForm.id ? 'Edit Gallery Item' : 'New Gallery Item'}</h2>
+              <button onClick={() => setShowGalleryModal(false)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <form onSubmit={saveGalleryItem} style={{ display: 'grid', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Photo</label>
+                {galleryForm.image_url && (
+                  <img src={galleryForm.image_url} alt="" style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #dfe1da', marginBottom: '8px', background: '#eceee7' }} />
+                )}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadGalleryImage(f); }}
+                  style={{ color: '#111512', background: '#f7f8f3' }}
+                />
+                <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#8a908a' }}>
+                  {uploadingGalleryImage ? 'Uploading…' : 'PNG, JPG, WEBP or GIF · max 5 MB'}
+                </p>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Title</label>
+                <input required placeholder="e.g. Reflow oven — PCB assembly" value={galleryForm.title} onChange={(e) => setGalleryForm({ ...galleryForm, title: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#5a625d' }}>Caption (optional)</label>
+                <textarea placeholder="Short description of the work shown" value={galleryForm.caption} onChange={(e) => setGalleryForm({ ...galleryForm, caption: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '60px' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Category</label>
+                  <select value={galleryForm.category} onChange={(e) => setGalleryForm({ ...galleryForm, category: e.target.value as GalleryCategory })} style={{ color: '#111512', background: '#f7f8f3' }}>
+                    {(['Electronics', 'Fabrication', 'Software', 'Prototyping', 'Installations', 'Other'] as GalleryCategory[]).map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Position (lower shows first)</label>
+                  <input type="number" min="0" value={galleryForm.position} onChange={(e) => setGalleryForm({ ...galleryForm, position: Number(e.target.value) })} style={{ color: '#111512', background: '#f7f8f3' }} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input type="checkbox" checked={galleryForm.is_published} onChange={(e) => setGalleryForm({ ...galleryForm, is_published: e.target.checked })} style={{ width: 'auto' }} />
+                <label style={{ fontSize: '13px', color: '#5a625d' }}>Show on the public site</label>
+              </div>
+              <button type="submit" disabled={savingGallery || uploadingGalleryImage} className="primary" style={{ width: '100%', minHeight: '44px', marginTop: '4px' }}>
+                {savingGallery ? 'Saving…' : galleryForm.id ? 'Save Changes' : 'Add to Gallery'}
               </button>
             </form>
           </div>

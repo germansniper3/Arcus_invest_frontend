@@ -3,7 +3,7 @@ export type Role = 'super_admin' | 'admin' | 'admissions' | 'student' | string;
 export type PermissionResource =
   | 'opportunities' | 'accounts' | 'contracts' | 'payments' | 'quotes'
   | 'enrollments' | 'students' | 'events' | 'products' | 'users'
-  | 'audit' | 'email' | 'metrics' | 'roles';
+  | 'audit' | 'email' | 'metrics' | 'roles' | 'gallery';
 
 export interface ResourcePermission {
   read: boolean;
@@ -189,6 +189,19 @@ export interface Submission {
   status: 'submitted' | 'accepted' | 'revise';
   review_note: string;
   reviewed_at?: string | null;
+}
+
+export type GalleryCategory = 'Electronics' | 'Fabrication' | 'Software' | 'Prototyping' | 'Installations' | 'Other';
+
+export interface GalleryItem {
+  id: string;
+  created_at?: string;
+  title: string;
+  caption: string;
+  category: GalleryCategory;
+  image_url: string;
+  position: number;
+  is_published: boolean;
 }
 
 export interface Product {

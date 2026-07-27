@@ -8,18 +8,30 @@ import { QuoteForm } from '../components/QuoteForm';
 import { SmartImage } from '../components/SmartImage';
 import { api } from '../lib/api';
 import { arcusImages } from '../lib/assets';
-import type { Event, Product } from '../types';
+import type { Event, Product, GalleryItem } from '../types';
 
 export function PublicSite() {
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedService, setSelectedService] = useState<string>('');
   const [workshopSlide, setWorkshopSlide] = useState(1); // Slide 1: Electronics, Slide 2: Mechanical
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
 
   useEffect(() => {
     api.listPublicEvents().then((events) => setUpcomingEvents(events.slice(0, 3))).catch(() => {});
     api.listPublicProducts().then(setProducts).catch(() => {});
+    api.listPublicGallery().then(setGalleryItems).catch(() => {});
   }, []);
+
+  // Admin-managed photos win; the built-in trio is the fallback so the section
+  // is never empty before anything has been uploaded.
+  const shownGallery = galleryItems.length > 0
+    ? galleryItems.map((g) => ({ src: g.image_url, label: g.title, caption: g.caption }))
+    : [
+        { src: arcusImages.pcbWorkbench, label: 'Reflow Oven', caption: '' },
+        { src: arcusImages.assembly, label: 'Pick and Place', caption: '' },
+        { src: arcusImages.mechanicalWorkshop, label: 'CNC Mill Prototyping', caption: '' },
+      ];
 
   return (
     <>
@@ -313,22 +325,19 @@ export function PublicSite() {
           <div className="section-head" style={{ marginBottom: '32px' }}>
             <div>
               <p className="eyebrow">GALLERY</p>
-              <h2 style={{ color: '#fff' }}>Reflow Oven || Pick and Place || CNC Mill Prototyping</h2>
+              <h2 style={{ color: '#fff' }}>Work from our electronics and fabrication floors.</h2>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '32px' }}>
-            <div style={{ background: '#121714', border: '1px solid var(--line)', borderRadius: '8px', overflow: 'hidden', height: '220px', display: 'grid', placeItems: 'center', position: 'relative' }}>
-              <SmartImage src={arcusImages.pcbWorkbench} alt="Reflow Oven" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              <div style={{ position: 'absolute', bottom: 0, inset: 'auto 0 0 0', background: 'rgba(0,0,0,0.6)', padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>Reflow Oven</div>
-            </div>
-            <div style={{ background: '#121714', border: '1px solid var(--line)', borderRadius: '8px', overflow: 'hidden', height: '220px', display: 'grid', placeItems: 'center', position: 'relative' }}>
-              <SmartImage src={arcusImages.assembly} alt="Pick and Place" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              <div style={{ position: 'absolute', bottom: 0, inset: 'auto 0 0 0', background: 'rgba(0,0,0,0.6)', padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>Pick and Place</div>
-            </div>
-            <div style={{ background: '#121714', border: '1px solid var(--line)', borderRadius: '8px', overflow: 'hidden', height: '220px', display: 'grid', placeItems: 'center', position: 'relative' }}>
-              <SmartImage src={arcusImages.mechanicalWorkshop} alt="CNC Mill Prototyping" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              <div style={{ position: 'absolute', bottom: 0, inset: 'auto 0 0 0', background: 'rgba(0,0,0,0.6)', padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>CNC Mill Prototyping</div>
-            </div>
+            {shownGallery.map((item, i) => (
+              <div key={`${item.label}-${i}`} style={{ background: '#121714', border: '1px solid var(--line)', borderRadius: '8px', overflow: 'hidden', height: '220px', display: 'grid', placeItems: 'center', position: 'relative' }}>
+                <SmartImage src={item.src} alt={item.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ position: 'absolute', bottom: 0, inset: 'auto 0 0 0', background: 'rgba(0,0,0,0.6)', padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{item.label}</div>
+                  {item.caption && <div style={{ fontSize: '11px', color: '#c9cec4', marginTop: '2px' }}>{item.caption}</div>}
+                </div>
+              </div>
+            ))}
           </div>
           <div style={{ textAlign: 'center' }}>
             <a href="#quote" className="primary" style={{ padding: '0 24px' }}>Get A Quote</a>

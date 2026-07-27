@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -180,6 +180,22 @@ export const api = {
     request<any>(`/admin/events/${eventId}/broadcast`, { method: 'POST', body: JSON.stringify({ subject, message }) }),
   approveReservation: (rid: string) =>
     request<any>(`/admin/reservations/${rid}/approve`, { method: 'PATCH' }),
+
+  // Gallery
+  listPublicGallery: () => request<GalleryItem[]>('/gallery'),
+  adminListGallery: () => request<GalleryItem[]>('/admin/gallery'),
+  adminCreateGalleryItem: (body: Partial<GalleryItem>) =>
+    request<GalleryItem>('/admin/gallery', { method: 'POST', body: JSON.stringify(body) }),
+  adminUpdateGalleryItem: (id: string, body: Partial<GalleryItem>) =>
+    request<GalleryItem>(`/admin/gallery/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  adminDeleteGalleryItem: (id: string) =>
+    request<any>(`/admin/gallery/${id}`, { method: 'DELETE' }),
+  uploadGalleryImage: async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { url } = await requestUpload<{ url: string }>('/admin/gallery/image', formData);
+    return `${API_BASE_URL}${url}`;
+  },
 
   // Products
   listPublicProducts: () =>
