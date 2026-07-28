@@ -306,7 +306,7 @@ export function CounterSection({ active }: Props) {
                 <p className="empty" style={{ textAlign: 'center', color: '#5a625d' }}>Search for the first item.</p>
               ) : (
                 cart.map((line, i) => (
-                  <div key={`${line.product_id}-${i}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '12px', alignItems: 'center', background: '#fff', border: '1px solid #dfe1da', borderRadius: '8px', padding: '10px 12px' }}>
+                  <div key={`${line.product_id}-${i}`} className="cart-line" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '12px', alignItems: 'center', background: '#fff', border: '1px solid #dfe1da', borderRadius: '8px', padding: '10px 12px' }}>
                     <div style={{ minWidth: 0 }}>
                       <strong style={{ fontSize: '14px' }}>{line.description}</strong>
                       <div style={{ fontSize: '11px', color: '#5a625d' }}>{ZMW(line.unit_price)} each</div>
@@ -342,7 +342,10 @@ export function CounterSection({ active }: Props) {
                 </label>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #dfe1da', paddingTop: '10px', marginTop: '4px' }}>
                   <strong style={{ fontSize: '17px' }}>Total</strong>
-                  <strong style={{ fontSize: '22px', fontVariantNumeric: 'tabular-nums' }}>{ZMW(total)}</strong>
+                  {/* Keyed on the value so a change remounts the node and
+                      replays the flash. The operator reads this figure out to
+                      the customer; it used to change silently. */}
+                  <strong key={total} className="total-figure" style={{ fontSize: '22px', fontVariantNumeric: 'tabular-nums' }}>{ZMW(total)}</strong>
                 </div>
               </div>
 
@@ -476,7 +479,7 @@ export function CounterSection({ active }: Props) {
               <strong style={{ fontSize: '20px' }}>{ZMW(lastSale.total)}</strong>
             </div>
             {lastSale.payment_method === 'cash' && lastSale.change > 0 && (
-              <p style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#111512' }}>
+              <p className="change-due" style={{ margin: 0, fontSize: '26px', fontWeight: 900, color: '#111512', fontVariantNumeric: 'tabular-nums' }}>
                 Change {ZMW(lastSale.change)}
               </p>
             )}

@@ -341,6 +341,49 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
   @page { margin: 14mm; }
 }
 
+/* --- Focus visibility --- */
+/*
+  Every input in the product carried `outline: none` and only the login card
+  ever put anything back, so across the whole admin a keyboard user had no way
+  to see where they were. That is a hard accessibility failure anywhere, and it
+  is worst on the counter, which is deliberately built to be driven from the
+  keyboard with a customer waiting.
+
+  :focus-visible rather than :focus, so the ring appears for keyboard and
+  assistive navigation and not on every mouse click — which is what the
+  original `outline: none` was presumably trying to avoid.
+*/
+:is(input, textarea, select, button, a, summary, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  /* Nothing on the accent's own colour would be visible against it. */
+  border-radius: 4px;
+}
+/* Inputs also warm their border, which reads as "this field is live" on a
+   surface where the ring alone sits outside the box. */
+input, textarea, select {
+  transition: border-color var(--dur-fast) ease;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--accent);
+}
+
+/* --- Empty states --- */
+/* A bare sentence in a large panel reads as an error. An icon gives the state
+   a shape, so "there is nothing here yet" is legible before the words are. */
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 34px 24px;
+  text-align: center;
+  color: #5a625d;
+  font-size: 13px;
+  line-height: 1.55;
+  border: 1px solid #e6e8e0;
+}
+.empty svg { color: #b9c0b2; }
+
 /* --- Modal entrance --- */
 /* Radix stamps data-state on the overlay and the content, which is the hook.
    Enter only: closing removes the node in the same commit, and keeping it
@@ -389,6 +432,47 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
   /* Opacity still carries the arrival; only the movement goes. */
   .modal-card[data-state="open"] { animation: overlay-in var(--dur-modal) var(--ease-out); }
   .table > article, .table > .row { animation: none; }
+}
+
+/* --- Counter ---------------------------------------------------------------
+   The one screen driven at speed with a customer waiting, so motion here is
+   feedback rather than decoration: it confirms the item landed without the
+   operator having to stop and read. */
+
+/* A line arriving in the cart. Slides from the search field's side so the
+   movement explains where it came from. */
+.cart-line {
+  animation: cart-line-in var(--dur-fast) var(--ease-out);
+}
+@keyframes cart-line-in {
+  from { opacity: 0; transform: translateX(-10px); }
+}
+
+/* The total is re-keyed on its own value, so React remounts it whenever the
+   figure changes and this replays. It is the number the operator reads out
+   loud, and it used to change with nothing to catch the eye. */
+.total-figure {
+  display: inline-block;
+  animation: total-change var(--dur-fast) var(--ease-out);
+}
+@keyframes total-change {
+  from { transform: scale(1.09); color: var(--copper); }
+}
+
+/* The change due, on the receipt confirmation. A sale completing is rare
+   enough per operator, and consequential enough, to be worth the delight
+   budget the frequent actions are denied. */
+.change-due {
+  animation: change-due-in 420ms var(--ease-out) backwards;
+  animation-delay: 60ms;
+}
+@keyframes change-due-in {
+  from { opacity: 0; transform: scale(0.86); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cart-line, .total-figure { animation: none; }
+  .change-due { animation: overlay-in var(--dur-modal) var(--ease-out); }
 }
 
 /* --- Loading skeletons --- */

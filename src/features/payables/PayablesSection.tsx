@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Download, Trash2, Edit2, Wallet, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Plus, Download, Trash2, Edit2, Wallet, ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, isApprovalBlocked, type ExpenseInput } from '../../lib/api';
 import { useCan } from '../../lib/permissions';
@@ -267,7 +267,12 @@ export function PayablesSection({ active }: Props) {
               </div>
             )}
             <div className="table">
-              <Loadable loading={loading} empty={outstanding.length === 0} emptyMessage="Nothing is outstanding. Record a supplier invoice when one arrives.">
+              <Loadable
+                loading={loading}
+                empty={outstanding.length === 0}
+                emptyIcon={<CheckCircle2 size={26} strokeWidth={1.5} style={{ color: '#8fbf5f' }} />}
+                emptyMessage="Nothing is outstanding. Record a supplier invoice when one arrives."
+              >
                 {outstanding.map((e) => (
                   <article key={e.id} className="row" style={{ gridTemplateColumns: '1.4fr auto auto auto', gap: '14px' }}>
                     <div>

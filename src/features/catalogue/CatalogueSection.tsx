@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash2, UploadCloud } from 'lucide-react';
+import { Plus, Edit2, Trash2, UploadCloud, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, MAX_PRODUCT_IMAGE_SIZE } from '../../lib/api';
 import { useCan } from '../../lib/permissions';
@@ -119,7 +119,12 @@ export function CatalogueSection({ active }: Props) {
               )}
             </div>
             <div className="table" style={{ display: 'grid', gap: '10px' }}>
-              <Loadable loading={loading} empty={products.length === 0} emptyMessage="Add your first product.">
+              <Loadable
+                loading={loading}
+                empty={products.length === 0}
+                emptyIcon={<Package size={26} strokeWidth={1.5} />}
+                emptyMessage="Add your first product."
+              >
                 {products.map((p) => (
                   <article
                     key={p.id}

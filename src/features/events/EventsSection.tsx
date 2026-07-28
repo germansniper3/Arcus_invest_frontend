@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash2, Mail, Send } from 'lucide-react';
+import { Plus, Edit2, Trash2, Mail, Send, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../lib/api';
 import { useCan } from '../../lib/permissions';
@@ -143,7 +143,12 @@ export function EventsSection({ active }: Props) {
               )}
             </div>
             <div className="table">
-              <Loadable loading={loading} empty={events.length === 0} emptyMessage="Create your first event.">
+              <Loadable
+                loading={loading}
+                empty={events.length === 0}
+                emptyIcon={<Calendar size={26} strokeWidth={1.5} />}
+                emptyMessage="Create your first event."
+              >
                 {events.map((event) => (
                 <article
                   key={event.id}

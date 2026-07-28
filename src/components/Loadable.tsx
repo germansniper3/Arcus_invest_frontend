@@ -1,3 +1,4 @@
+import { Inbox } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface Props {
@@ -6,6 +7,12 @@ interface Props {
   empty: boolean;
   /** What to say when the list really is empty. */
   emptyMessage: ReactNode;
+  /**
+   * The icon for the empty state. Pass one that describes the thing that is
+   * missing — a box for stock, a receipt for sales — so the state is legible
+   * before the sentence is read. Falls back to a generic tray.
+   */
+  emptyIcon?: ReactNode;
   children: ReactNode;
 }
 
@@ -22,9 +29,16 @@ interface Props {
  * Skeleton rows rather than a spinner: they occupy the space the content will,
  * so nothing jumps when it lands.
  */
-export function Loadable({ loading, empty, emptyMessage, children }: Props) {
+export function Loadable({ loading, empty, emptyMessage, emptyIcon, children }: Props) {
   if (loading) return <Skeleton />;
-  if (empty) return <p className="empty">{emptyMessage}</p>;
+  if (empty) {
+    return (
+      <div className="empty">
+        {emptyIcon ?? <Inbox size={26} strokeWidth={1.5} />}
+        <span>{emptyMessage}</span>
+      </div>
+    );
+  }
   return <>{children}</>;
 }
 
