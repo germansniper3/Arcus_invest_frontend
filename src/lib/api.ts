@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, ReceivablesReport, AccountPayment, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -228,6 +228,17 @@ export const api = {
   // Cross-sell / upsell suggestions for one account (name must be encoded).
   adminAccountRecommendations: (account: string) =>
     request<AccountRecommendations>(`/admin/accounts/${encodeURIComponent(account)}/recommendations`),
+
+  // Receivables — balances are computed server-side and never stored, so these
+  // are always read fresh rather than cached alongside the deal.
+  adminReceivables: () => request<ReceivablesReport>('/admin/receivables'),
+  adminAccountPayments: (account: string) =>
+    request<{ payments: AccountPayment[]; total: number }>(`/admin/accounts/${encodeURIComponent(account)}/payments`),
+  adminMarkInvoiced: (id: string, body: { invoiced_at?: string; clear?: boolean; apply_vat?: boolean }) =>
+    request<Opportunity>(`/admin/opportunities/${id}/invoiced`, { method: 'PATCH', body: JSON.stringify(body) }),
+  exportReceivablesCSV: () => downloadBlob('/admin/receivables/export', 'receivables.csv'),
+  exportPipelineCSV: () => downloadBlob('/admin/opportunities/export', 'pipeline.csv'),
+  exportPaymentsCSV: () => downloadBlob('/admin/payments/export', 'payments.csv'),
 
   // Notifications (the caller's own inbox; the server scopes every query)
   adminNotifications: (unreadOnly = false) =>

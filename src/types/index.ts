@@ -279,6 +279,12 @@ export interface Opportunity {
   contacts: OpportunityContact[];
   line_items: OpportunityLineItem[];
   line_items_total: number;
+  /** What the client was billed, VAT included where it applies. Computed server-side. */
+  invoiced_total: number;
+  /** Whether the issued invoice carried VAT — part of the deal, not a view toggle. */
+  apply_vat: boolean;
+  /** When the client was billed. Null means this is not a receivable yet. */
+  invoiced_at?: string | null;
 }
 
 export interface EmailStatus {
@@ -440,6 +446,39 @@ export interface ContractSignature {
   signed_version_id?: string | null;
   original_hash: string;
   signed_hash: string;
+}
+
+/** One invoiced deal with money still outstanding. */
+export interface Receivable {
+  opportunity_id: string;
+  name: string;
+  account_name: string;
+  invoiced_at?: string | null;
+  invoiced: number;
+  paid: number;
+  outstanding: number;
+  bucket: 'current' | '30' | '60' | '90+';
+  days_overdue: number;
+  apply_vat: boolean;
+}
+
+export interface ReceivablesReport {
+  rows: Receivable[];
+  buckets: Record<'current' | '30' | '60' | '90+', number>;
+  total_outstanding: number;
+}
+
+/** A payment seen from the account level, so it names the deal it belongs to. */
+export interface AccountPayment {
+  id: string;
+  opportunity_id: string;
+  opportunity_name: string;
+  amount: number;
+  method: string;
+  reference: string;
+  paid_at: string;
+  note: string;
+  recorded_by: string;
 }
 
 /** How much outbound mail a user gets from notifications. */

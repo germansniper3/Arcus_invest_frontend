@@ -3,19 +3,19 @@ import {
   LogOut, RefreshCcw, UserPlus, FileText, Calendar,
   Send, CheckSquare, Plus, Edit2, Trash2,
   Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
-  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History, Sparkles, Users, Image as ImageIcon
+  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History, Sparkles, Users, Wallet, Image as ImageIcon
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory, DocumentVersion, DocumentAccessLog } from '../types';
-import DocumentView, { type DocumentKind } from '../components/DocumentView';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory, DocumentVersion, DocumentAccessLog, ReceivablesReport } from '../types';
+import DocumentView, { type DocumentKind, VAT_RATE } from '../components/DocumentView';
 import { NumberField } from '../components/NumberField';
 import { Modal } from '../components/Modal';
 import { SignContractModal } from '../components/SignContractModal';
 import { NotificationBell } from '../components/NotificationBell';
 
-type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit' | 'users' | 'gallery';
+type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'receivables' | 'audit' | 'users' | 'gallery';
 
 const ROLE_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
   super_admin: { bg: '#e7dff2', fg: '#5b3a8a', label: 'Super Admin' },
@@ -179,7 +179,7 @@ export function AdminPage() {
   const [forecast, setForecast] = useState<PipelineForecast | null>(null);
   const [staff, setStaff] = useState<User[]>([]);
   const [showOpportunityModal, setShowOpportunityModal] = useState(false);
-  const emptyOpportunity = { id: '', name: '', account_name: '', contact_name: '', contact_email: '', sector: '', segment: 'standard' as OpportunitySegment, stage: 'prospecting' as OpportunityStage, grade: 'bronze' as OpportunityGrade, deal_value: 0, probability: 10, owner_id: '', expected_close_at: '', notes: '', contacts: [] as OpportunityContact[], line_items: [] as OpportunityLineItem[] };
+  const emptyOpportunity = { id: '', name: '', account_name: '', contact_name: '', contact_email: '', sector: '', segment: 'standard' as OpportunitySegment, stage: 'prospecting' as OpportunityStage, grade: 'bronze' as OpportunityGrade, deal_value: 0, probability: 10, owner_id: '', expected_close_at: '', notes: '', contacts: [] as OpportunityContact[], line_items: [] as OpportunityLineItem[], apply_vat: false, invoiced_at: '' };
   const [opportunityForm, setOpportunityForm] = useState(emptyOpportunity);
   // Engagement log for the opportunity currently open in the modal.
   const [activities, setActivities] = useState<OpportunityActivity[]>([]);
@@ -260,6 +260,7 @@ export function AdminPage() {
   const [contractAccessLog, setContractAccessLog] = useState<DocumentAccessLog[]>([]);
   const [contractHistoryLoading, setContractHistoryLoading] = useState(false);
   const [signingContract, setSigningContract] = useState<Contract | null>(null);
+  const [receivables, setReceivables] = useState<ReceivablesReport | null>(null);
   const [savingContract, setSavingContract] = useState(false);
   const [downloadingContractId, setDownloadingContractId] = useState<string | null>(null);
   const NIL_UUID = '00000000-0000-0000-0000-000000000000';
@@ -325,6 +326,8 @@ export function AdminPage() {
         ]);
         setContracts(nextContracts);
         setOpportunities(nextOpportunities);
+      } else if (activeTab === 'receivables') {
+        setReceivables(await api.adminReceivables());
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to load admin data');
@@ -350,6 +353,8 @@ export function AdminPage() {
     pipeline: 'opportunities', accounts: 'accounts', contracts: 'contracts',
     enrollments: 'enrollments', students: 'students', events: 'events',
     products: 'products', users: 'users', audit: 'audit', gallery: 'gallery',
+    // The debtor book follows payment access, matching the server's mapping.
+    receivables: 'payments',
   };
   useEffect(() => {
     const needed = TAB_RESOURCE[activeTab];
@@ -1008,6 +1013,8 @@ export function AdminPage() {
       expected_close_at: o.expected_close_at ? o.expected_close_at.slice(0, 10) : '', notes: o.notes,
       contacts: (o.contacts ?? []).map((c) => ({ ...c })),
       line_items: (o.line_items ?? []).map((li) => ({ ...li })),
+      apply_vat: o.apply_vat ?? false,
+      invoiced_at: o.invoiced_at ? o.invoiced_at.slice(0, 10) : '',
     });
     setActivityForm({ type: 'note', body: '' });
     setPaymentForm(emptyPayment);
@@ -1135,7 +1142,16 @@ export function AdminPage() {
       contacts: opportunityForm.contacts,
       line_items: opportunityForm.line_items.map((li) => ({ ...li, quantity: Number(li.quantity) || 1, unit_price: Number(li.unit_price) || 0 })),
       line_items_total: opportunityForm.line_items.reduce((s, li) => s + (Number(li.quantity) || 1) * (Number(li.unit_price) || 0), 0),
+      apply_vat: opportunityForm.apply_vat,
+      invoiced_at: opportunityForm.invoiced_at || null,
+      // The server is authoritative for this; the document generator computes
+      // its own totals from the line items above, so a local value would only
+      // go stale.
+      invoiced_total: 0,
     };
+    // Seed the document's VAT toggle from the deal, so the invoice a client
+    // receives and the balance in receivables cannot disagree.
+    setApplyVat(opportunityForm.apply_vat);
     setDocState({ kind, opportunity: opp, receiptPayment });
   }
 
@@ -1203,6 +1219,21 @@ export function AdminPage() {
       reloadPipeline();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete opportunity');
+    }
+  }
+
+  // Records (or undoes) the billing date that starts a receivable ageing. Kept
+  // separate from the deal form so it is a deliberate act rather than something
+  // a stray Save could set.
+  async function markInvoiced(clear: boolean) {
+    if (!opportunityForm.id) return;
+    try {
+      const updated = await api.adminMarkInvoiced(opportunityForm.id, clear ? { clear: true } : {});
+      setOpportunityForm((f) => ({ ...f, invoiced_at: updated.invoiced_at ? updated.invoiced_at.slice(0, 10) : '' }));
+      toast.success(clear ? 'Invoice date cleared' : 'Marked invoiced');
+      reloadPipeline();
+    } catch (err: any) {
+      toast.error(err.message || 'Could not update the invoice date');
     }
   }
 
@@ -1320,6 +1351,7 @@ export function AdminPage() {
             ['pipeline', 'Sales Pipeline', Target, can('opportunities')],
             ['accounts', 'Accounts & VSI', Building2, can('accounts')],
             ['contracts', 'Contracts', ScrollText, can('contracts')],
+            ['receivables', 'Receivables', Wallet, can('payments')],
             ['enrollments', 'Enrollments', UserPlus, can('enrollments')],
             ['students', 'Students Portal', GraduationCap, can('students')],
             ['events', 'Events Manager', Calendar, can('events')],
@@ -1358,6 +1390,7 @@ export function AdminPage() {
               {activeTab === 'pipeline' && 'Sales Pipeline & Forecast'}
               {activeTab === 'accounts' && 'Accounts & Vertical Sales Index'}
               {activeTab === 'contracts' && 'Contract Repository'}
+              {activeTab === 'receivables' && 'Receivables'}
               {activeTab === 'enrollments' && 'Innovation Hub Intake'}
               {activeTab === 'students' && 'Student Capstone Milestones'}
               {activeTab === 'events' && 'Public Programs & Events'}
@@ -2473,6 +2506,69 @@ export function AdminPage() {
         })()}
 
         {/* Contracts Tab */}
+        {activeTab === 'receivables' && (
+          <section className="data-section" style={{ marginTop: 0 }}>
+            <p style={{ marginBottom: '16px' }}>
+              What clients still owe, aged from the date each deal was invoiced. Balances are computed live from line items and recorded payments — nothing here is stored, so it cannot drift.
+            </p>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+              {([['Receivables', () => api.exportReceivablesCSV()], ['Pipeline', () => api.exportPipelineCSV()], ['Payments', () => api.exportPaymentsCSV()]] as const).map(([label, run]) => (
+                <button key={label} onClick={() => run().catch((err: any) => toast.error(err.message || 'Export failed'))} style={{ background: '#eef0ea', border: '1px solid #dfe1da', borderRadius: '6px', padding: '8px 14px', fontSize: '13px', color: '#111512', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <Download size={14} /> {label} CSV
+                </button>
+              ))}
+            </div>
+
+            {!receivables ? (
+              <p style={{ fontSize: '13px', color: '#8a908a' }}>Loading…</p>
+            ) : (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '18px' }}>
+                  {(['current', '30', '60', '90+'] as const).map((b) => (
+                    <div key={b} style={{ background: '#fff', border: '1px solid #dfe1da', borderLeft: `4px solid ${b === '90+' ? '#a00' : b === '60' ? '#c98745' : b === '30' ? '#d8c15a' : '#5f7c29'}`, borderRadius: '8px', padding: '12px 14px' }}>
+                      <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 800, color: '#5a625d' }}>
+                        {b === 'current' ? 'Current' : b === '90+' ? '90+ days' : `${b} days`}
+                      </div>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#111512', marginTop: '4px' }}>{ZMW(receivables.buckets[b] ?? 0)}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ marginBottom: '14px', fontSize: '13px', color: '#5a625d' }}>
+                  Total outstanding: <strong style={{ color: '#111512', fontSize: '16px' }}>{ZMW(receivables.total_outstanding)}</strong>
+                </div>
+
+                {receivables.rows.length === 0 ? (
+                  <p className="empty">Nothing outstanding. A deal appears here once it is marked invoiced and still has a balance.</p>
+                ) : (
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {receivables.rows.map((r) => (
+                      <div key={r.opportunity_id} style={{ background: '#fff', border: '1px solid #dfe1da', borderLeft: `4px solid ${r.bucket === '90+' ? '#a00' : r.bucket === '60' ? '#c98745' : r.bucket === '30' ? '#d8c15a' : '#d6d8d0'}`, borderRadius: '8px', padding: '12px 14px', display: 'grid', gap: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <strong style={{ color: '#111512' }}>{r.name}</strong>
+                            {r.account_name && <span style={{ color: '#5a625d' }}> · {r.account_name}</span>}
+                          </div>
+                          <strong style={{ color: r.bucket === 'current' ? '#111512' : '#a00' }}>{ZMW(r.outstanding)}</strong>
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#5a625d', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                          <span>Invoiced {r.invoiced_at ? new Date(r.invoiced_at).toLocaleDateString() : '—'}</span>
+                          <span>{ZMW(r.invoiced)} billed{r.apply_vat ? ' (incl. VAT)' : ''}</span>
+                          <span>{ZMW(r.paid)} received</span>
+                          <span style={{ fontWeight: r.bucket === 'current' ? 400 : 700 }}>
+                            {r.days_overdue} {r.days_overdue === 1 ? 'day' : 'days'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        )}
+
         {activeTab === 'contracts' && (
           <section className="data-section" style={{ marginTop: 0 }}>
             <p style={{ marginBottom: '16px' }}>Store agreements, track renewals, and download signed documents. Renewals due within {RENEWAL_SOON_DAYS} days are flagged.</p>
@@ -3343,6 +3439,28 @@ export function AdminPage() {
               </div>
               <div style={{ fontSize: '12px', color: '#5a625d', background: '#eef0ea', borderRadius: '6px', padding: '10px 12px' }}>
                 Weighted value: <strong style={{ color: '#5f7c29' }}>{ZMW((Number(opportunityForm.deal_value) || 0) * Number(opportunityForm.probability) / 100)}</strong>
+                {/* Billing state lives on the deal: VAT changes what the client
+                    owes, and the invoice date is what a receivable ages from. */}
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #dfe1da', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={opportunityForm.apply_vat} onChange={(e) => setOpportunityForm({ ...opportunityForm, apply_vat: e.target.checked })} style={{ width: 'auto' }} />
+                    Invoice includes {Math.round(VAT_RATE * 100)}% VAT
+                  </label>
+                  {opportunityForm.id && (
+                    opportunityForm.invoiced_at ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <span>Invoiced {new Date(opportunityForm.invoiced_at).toLocaleDateString()}</span>
+                        <button type="button" onClick={() => markInvoiced(true)} style={{ background: 'transparent', border: '1px solid #dfe1da', borderRadius: '4px', padding: '4px 9px', fontSize: '11px', color: '#5a625d', cursor: 'pointer' }}>
+                          Undo
+                        </button>
+                      </span>
+                    ) : (
+                      <button type="button" onClick={() => markInvoiced(false)} style={{ background: '#eef0ea', border: '1px solid #dfe1da', borderRadius: '4px', padding: '5px 11px', fontSize: '12px', color: '#111512', cursor: 'pointer' }}>
+                        Mark invoiced
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
             </form>
 
