@@ -341,6 +341,56 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
   @page { margin: 14mm; }
 }
 
+/* --- Modal entrance --- */
+/* Radix stamps data-state on the overlay and the content, which is the hook.
+   Enter only: closing removes the node in the same commit, and keeping it
+   alive for an exit animation means threading forceMount through the dialog —
+   more machinery than a 240ms fade back is worth. */
+.modal-overlay[data-state="open"] {
+  animation: overlay-in var(--dur-modal) var(--ease-out);
+}
+.modal-card[data-state="open"] {
+  animation: modal-in var(--dur-modal) var(--ease-out);
+}
+@keyframes overlay-in {
+  from { opacity: 0; }
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.96); }
+}
+/* transform-origin stays centred: these dialogs are opened from wherever the
+   user happened to be, so there is no trigger to grow out of. Scaling from 0
+   is deliberately avoided — nothing in the real world appears from nothing. */
+
+/* --- List entrance --- */
+/* Rows arrive staggered so a list reads as settling rather than snapping into
+   place. The stagger is capped at ten: past that it stops being rhythm and
+   starts being a queue, and a long table would take a visible second to
+   finish arriving. Rows beyond the cap simply share the last delay. */
+.table > article,
+.table > .row {
+  animation: row-in var(--dur-fast) var(--ease-out) backwards;
+}
+.table > article:nth-child(1),  .table > .row:nth-child(1)  { animation-delay: 0ms; }
+.table > article:nth-child(2),  .table > .row:nth-child(2)  { animation-delay: 40ms; }
+.table > article:nth-child(3),  .table > .row:nth-child(3)  { animation-delay: 80ms; }
+.table > article:nth-child(4),  .table > .row:nth-child(4)  { animation-delay: 120ms; }
+.table > article:nth-child(5),  .table > .row:nth-child(5)  { animation-delay: 160ms; }
+.table > article:nth-child(6),  .table > .row:nth-child(6)  { animation-delay: 200ms; }
+.table > article:nth-child(7),  .table > .row:nth-child(7)  { animation-delay: 240ms; }
+.table > article:nth-child(8),  .table > .row:nth-child(8)  { animation-delay: 280ms; }
+.table > article:nth-child(9),  .table > .row:nth-child(9)  { animation-delay: 320ms; }
+.table > article:nth-child(n+10), .table > .row:nth-child(n+10) { animation-delay: 360ms; }
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Opacity still carries the arrival; only the movement goes. */
+  .modal-card[data-state="open"] { animation: overlay-in var(--dur-modal) var(--ease-out); }
+  .table > article, .table > .row { animation: none; }
+}
+
 /* --- Loading skeletons --- */
 /* A placeholder that occupies the row it is standing in for, so the real
    content does not shove the page around when it arrives. The shimmer is
