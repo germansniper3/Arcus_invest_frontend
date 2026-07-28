@@ -7,6 +7,7 @@ import type { Expense, ExpenseCategory, VatTreatment, PayablesReport, CashPositi
 import { Modal } from '../../components/Modal';
 import { NumberField } from '../../components/NumberField';
 import { SectionAction } from '../../components/SectionAction';
+import { Loadable } from '../../components/Loadable';
 
 const ZMW = (n: number) => `${Math.round(n).toLocaleString()} ZMW`;
 
@@ -75,7 +76,10 @@ export function PayablesSection({ active }: Props) {
   const [settlement, setSettlement] = useState({ amount: 0, method: 'bank_transfer', reference: '', note: '' });
   const [recording, setRecording] = useState(false);
 
+  const [loading, setLoading] = useState(true);
+
   async function load() {
+    setLoading(true);
     try {
       const [nextExpenses, nextReport, nextPosition] = await Promise.all([
         api.adminListExpenses(),
@@ -87,6 +91,8 @@ export function PayablesSection({ active }: Props) {
       setPosition(nextPosition);
     } catch (err: any) {
       toast.error(err.message || 'Could not load the supplier ledger');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -261,10 +267,8 @@ export function PayablesSection({ active }: Props) {
               </div>
             )}
             <div className="table">
-              {outstanding.length === 0 ? (
-                <p className="empty">Nothing is outstanding. Record a supplier invoice when one arrives.</p>
-              ) : (
-                outstanding.map((e) => (
+              <Loadable loading={loading} empty={outstanding.length === 0} emptyMessage="Nothing is outstanding. Record a supplier invoice when one arrives.">
+                {outstanding.map((e) => (
                   <article key={e.id} className="row" style={{ gridTemplateColumns: '1.4fr auto auto auto', gap: '14px' }}>
                     <div>
                       <strong style={{ fontSize: '15px' }}>{e.supplier}</strong>
@@ -303,8 +307,8 @@ export function PayablesSection({ active }: Props) {
                       )}
                     </div>
                   </article>
-                ))
-              )}
+                ))}
+              </Loadable>
             </div>
           </section>
 

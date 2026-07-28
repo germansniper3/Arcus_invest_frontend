@@ -6,6 +6,7 @@ import { useCan } from '../../lib/permissions';
 import type { Enrollment } from '../../types';
 import { Modal } from '../../components/Modal';
 import { SectionAction } from '../../components/SectionAction';
+import { Loadable } from '../../components/Loadable';
 
 const EMPTY_FORM = { full_name: '', email: '', phone: '', location: '', tier: 'Builder', about: '', notes: '' };
 
@@ -22,12 +23,16 @@ export function IntakeSection({ active }: Props) {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
+    setLoading(true);
     try {
       setEnrollments(await api.enrollments());
     } catch (err: any) {
       toast.error(err.message || 'Failed to load admin data');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -101,10 +106,8 @@ export function IntakeSection({ active }: Props) {
           <section className="data-section">
             <h2>Recent Enrollment Applications</h2>
             <div className="table">
-              {enrollments.length === 0 ? (
-                <p className="empty">No applications filed yet.</p>
-              ) : (
-                enrollments.map((item) => (
+              <Loadable loading={loading} empty={enrollments.length === 0} emptyMessage="Applications will appear here as they come in.">
+                {enrollments.map((item) => (
                   <article key={item.id} className="row" style={{ gridTemplateColumns: '1.2fr auto auto auto auto', gap: '16px' }}>
                     <div>
                       <strong style={{ fontSize: '16px' }}>{item.full_name}</strong>
@@ -159,8 +162,8 @@ export function IntakeSection({ active }: Props) {
                       )}
                     </div>
                   </article>
-                ))
-              )}
+                ))}
+              </Loadable>
             </div>
           </section>
 

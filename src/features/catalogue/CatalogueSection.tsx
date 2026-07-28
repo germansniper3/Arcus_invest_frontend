@@ -7,6 +7,7 @@ import type { Product } from '../../types';
 import { Modal } from '../../components/Modal';
 import { NumberField } from '../../components/NumberField';
 import { StockLedger } from './StockLedger';
+import { Loadable } from '../../components/Loadable';
 
 const EMPTY_PRODUCT = { id: '', name: '', description: '', price: 0, stock: 0, image_url: '', specs: '', is_published: true };
 
@@ -29,12 +30,16 @@ export function CatalogueSection({ active }: Props) {
   const [form, setForm] = useState(EMPTY_PRODUCT);
   const [showModal, setShowModal] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
+    setLoading(true);
     try {
       setProducts(await api.adminListProducts());
     } catch (err: any) {
       toast.error(err.message || 'Failed to load admin data');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -114,10 +119,8 @@ export function CatalogueSection({ active }: Props) {
               )}
             </div>
             <div className="table" style={{ display: 'grid', gap: '10px' }}>
-              {products.length === 0 ? (
-                <p className="empty">No products added yet. Create your first product listing.</p>
-              ) : (
-                products.map((p) => (
+              <Loadable loading={loading} empty={products.length === 0} emptyMessage="Add your first product.">
+                {products.map((p) => (
                   <article
                     key={p.id}
                     onClick={() => setSelected(p)}
@@ -153,8 +156,8 @@ export function CatalogueSection({ active }: Props) {
                       </div>
                     </div>
                   </article>
-                ))
-              )}
+                ))}
+              </Loadable>
             </div>
           </section>
 

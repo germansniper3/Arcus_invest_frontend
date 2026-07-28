@@ -6,6 +6,7 @@ import { useCan } from '../../lib/permissions';
 import type { Event, Reservation } from '../../types';
 import { Modal } from '../../components/Modal';
 import { NumberField } from '../../components/NumberField';
+import { Loadable } from '../../components/Loadable';
 
 const EMPTY_EVENT = { id: '', title: '', description: '', date: '', location: '', capacity: 100, is_published: true, image_url: '' };
 
@@ -24,11 +25,16 @@ export function EventsSection({ active }: Props) {
   const [broadcastForm, setBroadcastForm] = useState({ subject: '', message: '' });
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
 
+  const [loading, setLoading] = useState(true);
+
   async function load() {
+    setLoading(true);
     try {
       setEvents(await api.adminListEvents());
     } catch (err: any) {
       toast.error(err.message || 'Failed to load admin data');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -137,7 +143,8 @@ export function EventsSection({ active }: Props) {
               )}
             </div>
             <div className="table">
-              {events.map((event) => (
+              <Loadable loading={loading} empty={events.length === 0} emptyMessage="Create your first event.">
+                {events.map((event) => (
                 <article
                   key={event.id}
                   onClick={() => handleEventSelect(event)}
@@ -160,7 +167,8 @@ export function EventsSection({ active }: Props) {
                     <span>{event.location}</span>
                   </div>
                 </article>
-              ))}
+                ))}
+              </Loadable>
             </div>
           </section>
 

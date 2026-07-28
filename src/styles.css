@@ -341,6 +341,35 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
   @page { margin: 14mm; }
 }
 
+/* --- Loading skeletons --- */
+/* A placeholder that occupies the row it is standing in for, so the real
+   content does not shove the page around when it arrives. The shimmer is
+   opacity only: animating a gradient's background-position repaints the whole
+   element every frame, and there may be a dozen of these on screen. */
+.skeleton-row {
+  height: 62px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e6e8e0;
+  animation: skeleton-pulse 1.4s var(--ease-in-out) infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+/* Screen readers get the state as text; the pulse alone means nothing to them. */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-row { animation: none; opacity: 0.7; }
+}
+
 /* --- Permission Matrix Grid (Roles Editor) --- */
 .perm-matrix { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 0; margin-top: 6px; }
 .perm-matrix th, .perm-matrix td { padding: 8px 10px; text-align: center; border-bottom: 1px solid #dfe1da; }

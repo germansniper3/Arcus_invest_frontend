@@ -21,6 +21,7 @@ import { IntakeSection } from '../features/intake/IntakeSection';
 import { PayablesSection } from '../features/payables/PayablesSection';
 import { CounterSection } from '../features/counter/CounterSection';
 import { SECTION_ACTION_SLOT_ID } from '../components/SectionAction';
+import { Skeleton } from '../components/Loadable';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'receivables' | 'payables' | 'counter' | 'approvals' | 'audit' | 'users' | 'gallery';
 
@@ -152,6 +153,10 @@ const SUBMISSION_STEPS: { key: string; label: string }[] = [
 export function AdminPage() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  // Whether the active section's data is still on its way. Without this every
+  // list renders its empty state during the fetch, so a slow connection is told
+  // "there is nothing here" — which is not slowness, it is a wrong answer.
+  const [sectionLoading, setSectionLoading] = useState(true);
   
   // Overview / Quotes State
   const [metrics, setMetrics] = useState({ enrollments: 0, open_quotes: 0, students: 0, active_events: 0 });
@@ -287,10 +292,24 @@ export function AdminPage() {
   const staffName = (id?: string | null) => (id ? staff.find((s) => s.id === id)?.full_name ?? 'Unknown' : '');
 
   async function loadData() {
+    setSectionLoading(true);
     try {
-      const nextMetrics = await api.adminMetrics();
-      setMetrics(nextMetrics);
+      // Metrics used to be awaited before the section's own request was even
+      // issued, which made every tab switch two round trips in series. They are
+      // unrelated queries, so they go together — on a connection where a round
+      // trip costs a third of a second, that was half the wait for nothing.
+      const metricsPromise = api.adminMetrics().then(setMetrics);
+      await Promise.all([metricsPromise, loadSection()]);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load admin data');
+    } finally {
+      setSectionLoading(false);
+    }
+  }
 
+  // Fetches whatever the active section needs. Errors propagate to loadData,
+  // which owns the toast and the loading flag.
+  async function loadSection() {
       // Each branch is permission-guarded so a restricted role never fires a
       // request the server will refuse.
       if (activeTab === 'overview') {
@@ -345,9 +364,6 @@ export function AdminPage() {
         if (can('roles')) setRoles(await api.adminListRoles());
         await loadApprovals();
       }
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load admin data');
-    }
   }
 
   async function loadApprovals() {
@@ -1403,7 +1419,7 @@ export function AdminPage() {
             <section className="data-section" style={{ marginTop: 0 }}>
               <h2>Quote & Contact Requests</h2>
               <div className="table" style={{ display: 'grid', gap: '12px' }}>
-                {quotes.length === 0 ? (
+                {sectionLoading ? <Skeleton /> : quotes.length === 0 ? (
                   <p className="empty">No contact queries yet.</p>
                 ) : (
                   quotes.map((item) => (
@@ -1570,7 +1586,7 @@ export function AdminPage() {
             <section className="data-section" style={{ marginTop: 0 }}>
               <h2>Enrolled Students</h2>
               <div className="table">
-                {students.length === 0 ? (
+                {sectionLoading ? <Skeleton /> : students.length === 0 ? (
                   <p className="empty">No student records found.</p>
                 ) : (
                   students.map((student) => (
@@ -2330,7 +2346,7 @@ export function AdminPage() {
         {activeTab === 'contracts' && (
           <section className="data-section" style={{ marginTop: 0 }}>
             <p style={{ marginBottom: '16px' }}>Store agreements, track renewals, and download signed documents. Renewals due within {RENEWAL_SOON_DAYS} days are flagged.</p>
-            {contracts.length === 0 ? (
+            {sectionLoading ? <Skeleton /> : contracts.length === 0 ? (
               <p className="empty">No contracts yet — click “New Contract” to add one.</p>
             ) : (
               <div style={{ display: 'grid', gap: '12px' }}>
@@ -2393,7 +2409,7 @@ export function AdminPage() {
         {activeTab === 'audit' && (
           <section className="data-section" style={{ marginTop: 0 }}>
             <p style={{ marginBottom: '16px' }}>Immutable trail of admin changes — who did what, and when. Showing the {auditLogs.length} most recent {auditLogs.length === 1 ? 'entry' : 'entries'}.</p>
-            {auditLogs.length === 0 ? (
+            {sectionLoading ? <Skeleton /> : auditLogs.length === 0 ? (
               <p className="empty">No audit entries yet — changes made in the portal will appear here.</p>
             ) : (
               <div style={{ display: 'grid', gap: '8px' }}>
@@ -2425,7 +2441,7 @@ export function AdminPage() {
             <p style={{ marginBottom: '16px' }}>
               Photos of Arcus's work, shown in the Gallery section of the public site. Lower position numbers appear first. Unpublished items stay hidden from visitors.
             </p>
-            {gallery.length === 0 ? (
+            {sectionLoading ? <Skeleton /> : gallery.length === 0 ? (
               <p className="empty">No gallery items yet — add one and it replaces the built-in placeholder photos on the public site.</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
@@ -2611,7 +2627,7 @@ export function AdminPage() {
             <section className="data-section" style={{ marginTop: 0 }}>
               <h2>User Accounts</h2>
               <p style={{ marginBottom: '16px' }}>Every account in the system. Students are created by claiming an onboarding invite; staff are created here. Deleting a student clears their capstone data and reopens the enrollment for re-invitation.</p>
-              {users.length === 0 ? (
+              {sectionLoading ? <Skeleton /> : users.length === 0 ? (
                 <p className="empty">No users found.</p>
               ) : (
                 <div style={{ overflowX: 'auto', border: '1px solid #d6d8d0', borderRadius: '8px', background: '#fff' }}>
