@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -228,6 +228,19 @@ export const api = {
   // Cross-sell / upsell suggestions for one account (name must be encoded).
   adminAccountRecommendations: (account: string) =>
     request<AccountRecommendations>(`/admin/accounts/${encodeURIComponent(account)}/recommendations`),
+
+  // Notifications (the caller's own inbox; the server scopes every query)
+  adminNotifications: (unreadOnly = false) =>
+    request<{ items: Notification[]; unread: number }>(`/admin/notifications${unreadOnly ? '?unread=true' : ''}`),
+  // PATCH, not POST: marking read is an update, and nobody creates inbox items.
+  adminMarkNotificationRead: (id: string) =>
+    request<any>(`/admin/notifications/${id}/read`, { method: 'PATCH' }),
+  adminMarkAllNotificationsRead: () =>
+    request<any>('/admin/notifications/read-all', { method: 'PATCH' }),
+  adminNotificationPreference: () =>
+    request<{ email_mode: EmailMode }>('/admin/notifications/preferences'),
+  adminSetNotificationPreference: (email_mode: EmailMode) =>
+    request<{ email_mode: EmailMode }>('/admin/notifications/preferences', { method: 'PUT', body: JSON.stringify({ email_mode }) }),
 
   // Contracts
   adminListContracts: () => request<Contract[]>('/admin/contracts'),

@@ -13,6 +13,7 @@ import DocumentView, { type DocumentKind } from '../components/DocumentView';
 import { NumberField } from '../components/NumberField';
 import { Modal } from '../components/Modal';
 import { SignContractModal } from '../components/SignContractModal';
+import { NotificationBell } from '../components/NotificationBell';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'audit' | 'users' | 'gallery';
 
@@ -1340,6 +1341,9 @@ export function AdminPage() {
         </nav>
 
         <div className="rail-actions">
+          {/* Gated on the permission the inbox routes actually require, so a
+              custom role without it never sees a bell that would 403. */}
+          {can('notifications', 'read') && <NotificationBell />}
           <button onClick={() => loadData()}><RefreshCcw size={17} /> Refresh Data</button>
           <button onClick={logout}><LogOut size={17} /> Logout</button>
         </div>

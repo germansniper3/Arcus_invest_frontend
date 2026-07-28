@@ -3,7 +3,7 @@ export type Role = 'super_admin' | 'admin' | 'admissions' | 'student' | string;
 export type PermissionResource =
   | 'opportunities' | 'accounts' | 'contracts' | 'payments' | 'quotes'
   | 'enrollments' | 'students' | 'events' | 'products' | 'users'
-  | 'audit' | 'email' | 'metrics' | 'roles' | 'gallery';
+  | 'audit' | 'email' | 'metrics' | 'roles' | 'gallery' | 'notifications';
 
 export interface ResourcePermission {
   read: boolean;
@@ -440,6 +440,21 @@ export interface ContractSignature {
   signed_version_id?: string | null;
   original_hash: string;
   signed_hash: string;
+}
+
+/** How much outbound mail a user gets from notifications. */
+export type EmailMode = 'per_event' | 'digest' | 'none';
+
+/** One item in a staff member's inbox — something that needs a person. */
+export interface Notification {
+  id: string;
+  created_at: string;
+  kind: 'contract_renewal' | 'submission_review' | 'extension_pending' | 'deal_stalled';
+  title: string;
+  body: string;
+  entity_type: string;
+  entity_id?: string | null;
+  read_at?: string | null;
 }
 
 /** A recorded read of a stored file — who downloaded it, when, from where. */
