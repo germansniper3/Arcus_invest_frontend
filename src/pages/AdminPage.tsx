@@ -15,6 +15,9 @@ import { Modal } from '../components/Modal';
 import { SignContractModal } from '../components/SignContractModal';
 import { NotificationBell } from '../components/NotificationBell';
 import { CatalogueSection } from '../features/catalogue/CatalogueSection';
+import { EventsSection } from '../features/events/EventsSection';
+import { IntakeSection } from '../features/intake/IntakeSection';
+import { SECTION_ACTION_SLOT_ID } from '../components/SectionAction';
 
 type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'receivables' | 'approvals' | 'audit' | 'users' | 'gallery';
 
@@ -153,11 +156,6 @@ export function AdminPage() {
   const [selectedQuote, setSelectedQuote] = useState<QuoteRequest | null>(null);
   const [quoteNotes, setQuoteNotes] = useState('');
 
-  // Enrollments State
-  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [selectedEnrollment, setSelectedEnrollment] = useState<Enrollment | null>(null);
-  const [inviteUrl, setInviteUrl] = useState<string>('');
-
   // Students Hub State
   const [students, setStudents] = useState<User[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
@@ -179,15 +177,6 @@ export function AdminPage() {
   const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null);
   const [submissionNoteDraft, setSubmissionNoteDraft] = useState('');
   const [downloadingSubmissionId, setDownloadingSubmissionId] = useState<string | null>(null);
-
-  // Events State
-  const [events, setEvents] = useState<Event[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [eventReservations, setEventReservations] = useState<Reservation[]>([]);
-  const [eventForm, setEventForm] = useState({ id: '', title: '', description: '', date: '', location: '', capacity: 100, is_published: true, image_url: '' });
-  const [showEventModal, setShowEventModal] = useState(false);
-  const [broadcastForm, setBroadcastForm] = useState({ subject: '', message: '' });
-  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
 
   // Pipeline (Opportunities) State
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -259,12 +248,6 @@ export function AdminPage() {
   const [userForm, setUserForm] = useState(emptyUser);
   const [savingUser, setSavingUser] = useState(false);
 
-  // New-enrollment modal (admin-initiated onboarding)
-  const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
-  const emptyEnrollmentForm = { full_name: '', email: '', phone: '', location: '', tier: 'Builder', about: '', notes: '' };
-  const [enrollmentForm, setEnrollmentForm] = useState(emptyEnrollmentForm);
-  const [savingEnrollment, setSavingEnrollment] = useState(false);
-
   // Contracts State
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [showContractModal, setShowContractModal] = useState(false);
@@ -310,15 +293,9 @@ export function AdminPage() {
         } else {
           setQuotes([]);
         }
-      } else if (activeTab === 'enrollments') {
-        const nextEnrollments = await api.enrollments();
-        setEnrollments(nextEnrollments);
       } else if (activeTab === 'students') {
         const nextStudents = await api.listStudents();
         setStudents(nextStudents);
-      } else if (activeTab === 'events') {
-        const nextEvents = await api.adminListEvents();
-        setEvents(nextEvents);
       } else if (activeTab === 'pipeline') {
         const [nextOpportunities, nextForecast, nextStaff] = await Promise.all([
           api.adminListOpportunities(),
@@ -536,58 +513,6 @@ export function AdminPage() {
       setActiveTab('pipeline');
     } catch (err: any) {
       toast.error(err.message || 'Failed to convert lead');
-    }
-  }
-
-  // --- Enrollment Handlers ---
-  async function updateEnrollmentStatus(item: Enrollment, status: string) {
-    try {
-      const updated = await api.updateEnrollment(item.id, { status });
-      setEnrollments((rows) => rows.map((row) => row.id === item.id ? updated : row));
-      toast.success(`Enrollment status updated to ${status}`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update status');
-    }
-  }
-
-  async function updateEnrollmentTier(item: Enrollment, tier: string) {
-    try {
-      const updated = await api.updateEnrollment(item.id, { tier });
-      setEnrollments((rows) => rows.map((row) => row.id === item.id ? updated : row));
-      toast.success(`Enrollment tier updated to ${tier}`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update tier');
-    }
-  }
-
-  async function generateInviteLink(item: Enrollment) {
-    try {
-      const res = await api.generateInvite(item.id);
-      setInviteUrl(res.claim_url);
-      setSelectedEnrollment(item);
-      if (res.emailed) {
-        toast.success(`Invitation emailed to ${item.email}`);
-      } else {
-        // Delivery is best-effort — the link still works, so say what to do next.
-        toast.warning(`Invitation created, but email was not sent (${res.email_error || 'unknown reason'}). Copy the link below and send it manually.`);
-      }
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to generate invitation');
-    }
-  }
-
-  async function saveEnrollment(e: React.FormEvent) {
-    e.preventDefault();
-    setSavingEnrollment(true);
-    try {
-      await api.adminCreateEnrollment(enrollmentForm);
-      toast.success('Enrollment created — you can now send the onboarding invite.');
-      setShowEnrollmentModal(false);
-      loadData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create enrollment');
-    } finally {
-      setSavingEnrollment(false);
     }
   }
 
@@ -973,94 +898,6 @@ export function AdminPage() {
       toast.error(err.message || 'Failed to download file');
     } finally {
       setDownloadingSubmissionId(null);
-    }
-  }
-
-  // --- Event Handlers ---
-  async function handleEventSelect(event: Event) {
-    setSelectedEvent(event);
-    setEventReservations([]);
-    try {
-      const res = await api.adminListReservations(event.id);
-      setEventReservations(res);
-    } catch (err: any) {
-      console.error(err);
-    }
-  }
-
-  function openCreateEventModal() {
-    setEventForm({ id: '', title: '', description: '', date: '', location: '', capacity: 100, is_published: true, image_url: '' });
-    setShowEventModal(true);
-  }
-
-  function openEditEventModal(event: Event) {
-    setEventForm({
-      id: event.id,
-      title: event.title,
-      description: event.description,
-      date: event.date ? event.date.substring(0, 16) : '',
-      location: event.location,
-      capacity: event.capacity,
-      is_published: event.is_published,
-      image_url: event.image_url || ''
-    });
-    setShowEventModal(true);
-  }
-
-  async function saveEvent(e: React.FormEvent) {
-    e.preventDefault();
-    try {
-      if (eventForm.id) {
-        await api.adminUpdateEvent(eventForm.id, eventForm);
-        toast.success('Event updated successfully');
-      } else {
-        await api.adminCreateEvent(eventForm);
-        toast.success('Event created successfully');
-      }
-      setShowEventModal(false);
-      setSelectedEvent(null);
-      loadData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to save event');
-    }
-  }
-
-  async function approveReservation(rid: string) {
-    try {
-      const updated = await api.approveReservation(rid);
-      setEventReservations((prev) => prev.map((r) => r.id === rid ? updated : r));
-      toast.success('Seat confirmed for attendee!');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to approve reservation');
-    }
-  }
-
-  async function deleteEvent(id: string) {
-    if (!confirm('Are you sure you want to delete this event? All reservation records will be lost.')) return;
-    try {
-      await api.adminDeleteEvent(id);
-      toast.success('Event deleted');
-      setSelectedEvent(null);
-      loadData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete event');
-    }
-  }
-
-  async function sendBroadcast(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedEvent) return;
-    try {
-      const res = await api.adminBroadcast(selectedEvent.id, broadcastForm.subject, broadcastForm.message);
-      if (res.status === 'sent') {
-        toast.success(`Broadcast emailed to ${res.recipients} confirmed attendee(s).`);
-      } else {
-        toast.warning(res.message || 'Broadcast stored, but no email was sent.');
-      }
-      setShowBroadcastModal(false);
-      setBroadcastForm({ subject: '', message: '' });
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to send broadcast');
     }
   }
 
@@ -1505,11 +1342,10 @@ export function AdminPage() {
               <Plus size={16} /> New Opportunity
             </button>
           )}
-          {activeTab === 'enrollments' && can('enrollments', 'create') && (
-            <button onClick={() => { setEnrollmentForm(emptyEnrollmentForm); setShowEnrollmentModal(true); }} className="primary" style={{ minHeight: '40px' }}>
-              <Plus size={16} /> New Enrollment
-            </button>
-          )}
+          {/* Extracted features portal their header action in here. `display:
+              contents` keeps the slot from counting as a flex item, which would
+              otherwise break the space-between layout when it is empty. */}
+          <div id={SECTION_ACTION_SLOT_ID} style={{ display: 'contents' }} />
           {activeTab === 'gallery' && can('gallery', 'create') && (
             <button onClick={() => { setGalleryForm(emptyGalleryItem); setShowGalleryModal(true); }} className="primary" style={{ minHeight: '40px' }}>
               <Plus size={16} /> New Gallery Item
@@ -1701,99 +1537,8 @@ export function AdminPage() {
         )}
 
         {/* Enrollments Tab */}
-        {activeTab === 'enrollments' && (
-          <div style={{ display: 'grid', gap: '24px' }}>
-            <section className="data-section">
-              <h2>Recent Enrollment Applications</h2>
-              <div className="table">
-                {enrollments.length === 0 ? (
-                  <p className="empty">No applications filed yet.</p>
-                ) : (
-                  enrollments.map((item) => (
-                    <article key={item.id} className="row" style={{ gridTemplateColumns: '1.2fr auto auto auto auto', gap: '16px' }}>
-                      <div>
-                        <strong style={{ fontSize: '16px' }}>{item.full_name}</strong>
-                        <span style={{ fontSize: '13px', color: '#5a625d', marginLeft: '8px' }}>{item.email} · {item.phone}</span>
-                        <p style={{ fontSize: '13px', marginBlock: '8px', color: '#5a625d' }}><strong>Project Direction:</strong> {item.project_idea || item.interests}</p>
-                        {item.orientation_at && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#c98745' }}>
-                            <Clock size={12} /> Orientation set for: {new Date(item.orientation_at).toLocaleString()}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Tier dropdown selection */}
-                      <div>
-                        <select
-                          value={item.tier}
-                          disabled={!can('enrollments', 'update')}
-                          onChange={(e) => updateEnrollmentTier(item, e.target.value)}
-                          style={{ color: '#111512', background: '#fff', border: '1px solid #d8dbd1', padding: '6px 10px', fontSize: '12px' }}
-                        >
-                          <option value="Explorer">Explorer</option>
-                          <option value="Builder">Builder</option>
-                          <option value="Professional">Professional</option>
-                        </select>
-                      </div>
-
-                      {/* Status select dropdown */}
-                      <div>
-                        <select
-                          value={item.status}
-                          disabled={!can('enrollments', 'update')}
-                          onChange={(e) => updateEnrollmentStatus(item, e.target.value)}
-                          style={{ color: '#111512', background: '#fff', border: '1px solid #d8dbd1', padding: '6px 10px', fontSize: '12px' }}
-                        >
-                          <option value="submitted">Submitted</option>
-                          <option value="pending_orientation">Pending Orientation</option>
-                          <option value="orientation_complete">Orientation Complete</option>
-                          <option value="accepted">Accepted</option>
-                          <option value="rejected">Rejected</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        {can('enrollments', 'create') && (
-                          <button
-                            onClick={() => generateInviteLink(item)}
-                            className="primary"
-                            style={{ minHeight: '34px', fontSize: '12px', padding: '0 12px', background: 'var(--accent)', color: '#11170e' }}
-                          >
-                            <UserPlus size={14} /> Invite Link
-                          </button>
-                        )}
-                      </div>
-                    </article>
-                  ))
-                )}
-              </div>
-            </section>
-
-            {/* Generated Invite Modal / Link overlay */}
-            {selectedEnrollment && inviteUrl && (
-              <div style={{ background: '#f7f8f3', border: '1px solid var(--copper)', borderRadius: '8px', padding: '20px', marginTop: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong style={{ color: 'var(--copper)' }}>Onboarding Registration Link for {selectedEnrollment.full_name}</strong>
-                  <button onClick={() => setSelectedEnrollment(null)} style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer' }}><X size={18} /></button>
-                </div>
-                <p style={{ fontSize: '13px', margin: '8px 0 12px' }}>Copy this secure URL and share it with the applicant. They will be prompted to choose a password and write down their capstone brief to claim workspace access.</p>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input readOnly value={inviteUrl} style={{ color: '#111512', background: '#fff', border: '1px solid #d8dbd1' }} />
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(inviteUrl);
-                      toast.success('Onboarding invite URL copied to clipboard');
-                    }}
-                    className="primary"
-                    style={{ minHeight: '44px', whiteSpace: 'nowrap' }}
-                  >
-                    Copy Link
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Hub intake, the invite link and its modal; see features/intake. */}
+        <IntakeSection active={activeTab === 'enrollments'} />
 
         {/* Students Tab */}
         {activeTab === 'students' && (
@@ -2180,122 +1925,8 @@ export function AdminPage() {
           </div>
         )}
 
-        {/* Events Tab */}
-        {activeTab === 'events' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '0.9fr 1.1fr', gap: '24px', alignItems: 'start' }}>
-            <section className="data-section" style={{ marginTop: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h2>Public Events</h2>
-                {can('events', 'create') && (
-                  <button onClick={openCreateEventModal} className="primary" style={{ minHeight: '36px', fontSize: '12px', padding: '0 12px' }}>
-                    <Plus size={14} /> New Event
-                  </button>
-                )}
-              </div>
-              <div className="table">
-                {events.map((event) => (
-                  <article 
-                    key={event.id} 
-                    onClick={() => handleEventSelect(event)}
-                    style={{ 
-                      padding: '16px', 
-                      background: selectedEvent?.id === event.id ? '#f7f8f3' : '#fff', 
-                      border: '1px solid #dfe1da', 
-                      borderRadius: '8px', 
-                      cursor: 'pointer' 
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <strong style={{ fontSize: '15px' }}>{event.title}</strong>
-                      <span className="status" style={{ background: event.is_published ? '#e8f2dc' : '#f0f0f0', color: event.is_published ? '#35520f !important' : '#555 !important' }}>
-                        {event.is_published ? 'Published' : 'Draft'}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: '#5a625d', marginTop: '6px' }}>
-                      <span>{new Date(event.date).toLocaleDateString()}</span>
-                      <span>{event.location}</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-
-            <section className="data-section" style={{ marginTop: 0 }}>
-              <h2>Event Administration</h2>
-              {!selectedEvent ? (
-                <div style={{ background: '#fff', border: '1px solid #d6d8d0', borderRadius: '8px', padding: '40px', textAlign: 'center', color: '#5a625d' }}>
-                  Select an event to manage details, view attendee registrations, or send broadcast communications.
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gap: '24px' }}>
-                  {/* Event details block */}
-                  <article className="panel" style={{ padding: '20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ margin: 0, fontSize: '18px' }}>{selectedEvent.title}</h3>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        {can('events', 'update') && (
-                          <button onClick={() => openEditEventModal(selectedEvent)} style={{ background: '#eef0ea', border: 0, padding: 6, borderRadius: '4px', cursor: 'pointer' }}><Edit2 size={14} /></button>
-                        )}
-                        {can('events', 'delete') && (
-                          <button onClick={() => deleteEvent(selectedEvent.id)} style={{ background: '#ffe2e2', color: '#a00', border: 0, padding: 6, borderRadius: '4px', cursor: 'pointer' }}><Trash2 size={14} /></button>
-                        )}
-                      </div>
-                    </div>
-                    <p style={{ fontSize: '12px', marginBlock: '8px', color: '#5a625d' }}>{selectedEvent.description}</p>
-                    <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: '#c98745', borderTop: '1px solid #eef0ea', paddingTop: '10px' }}>
-                      <span>Date: {new Date(selectedEvent.date).toLocaleString()}</span>
-                      <span>Location: {selectedEvent.location}</span>
-                    </div>
-                  </article>
-
-                  {/* Attendee reservations */}
-                  <article className="panel" style={{ padding: '20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <h3 style={{ margin: 0, fontSize: '16px' }}>Attendee Registrations ({eventReservations.length})</h3>
-                      {can('events', 'create') && (
-                        <button onClick={() => setShowBroadcastModal(true)} className="primary" style={{ minHeight: '32px', fontSize: '12px', padding: '0 12px' }}>
-                          <Mail size={14} /> Send Broadcast
-                        </button>
-                      )}
-                    </div>
-                    <div style={{ display: 'grid', gap: '8px', maxHeight: '260px', overflowY: 'auto' }}>
-                      {eventReservations.length === 0 ? (
-                        <p style={{ fontSize: '12px', color: '#5a625d', textAlign: 'center', padding: '12px' }}>No registrations yet.</p>
-                      ) : (
-                        eventReservations.map((res) => (
-                          <div key={res.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f7f8f3', padding: '10px 12px', borderRadius: '6px', border: `1px solid ${res.status === 'confirmed' ? '#c5dfa6' : '#d8dbd1'}`, fontSize: '12px', gap: '8px' }}>
-                            <div style={{ flex: 1 }}>
-                              <strong style={{ fontSize: '13px' }}>{res.full_name}</strong>
-                              <div style={{ color: '#5a625d', marginTop: '2px' }}>{res.email} · {res.phone || 'No phone'}</div>
-                              {res.notes && <div style={{ fontSize: '11px', color: '#c98745', marginTop: '4px' }}>Note: "{res.notes}"</div>}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                              <span style={{
-                                fontSize: '10px', padding: '3px 8px', borderRadius: '10px', fontWeight: 'bold',
-                                background: res.status === 'confirmed' ? '#e8f2dc' : '#fff3e0',
-                                color: res.status === 'confirmed' ? '#35520f' : '#c98745'
-                              }}>
-                                {res.status === 'confirmed' ? '✓ Confirmed' : '⏳ Pending'}
-                              </span>
-                              {res.status === 'pending' && can('events', 'update') && (
-                                <button
-                                  onClick={() => approveReservation(res.id)}
-                                  style={{ background: 'var(--accent)', color: '#11170e', border: 0, padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                                >
-                                  Approve Seat
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </article>
-                </div>
-              )}
-            </section>
-          </div>
-        )}
+        {/* Events, its reservations and both its modals; see features/events. */}
+        <EventsSection active={activeTab === 'events'} />
 
         {/* Products Tab */}
         {/* Catalogue owns its own state, fetching and modal; see features/catalogue. */}
@@ -3016,70 +2647,6 @@ export function AdminPage() {
         )}
       </section>
 
-      {/* Create / Edit Event Modal */}
-      <Modal
-          open={showEventModal}
-          onClose={() => setShowEventModal(false)}
-          title={eventForm.id ? 'Edit Event' : 'Create Event'}
-          footer={<button type="submit" form="event-form" className="primary" style={{ minHeight: '44px', padding: '0 20px' }}>{eventForm.id ? 'Update Event' : 'Create Event'}</button>}
-        >
-            <form id="event-form" onSubmit={saveEvent} style={{ display: 'grid', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Event Title</label>
-                <input required value={eventForm.title} onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Description</label>
-                <textarea required value={eventForm.description} onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '80px' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Date & Time</label>
-                <input required type="datetime-local" value={eventForm.date} onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Location</label>
-                <input required value={eventForm.location} onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Seating Capacity</label>
-                <NumberField required value={eventForm.capacity} onChange={(capacity) => setEventForm({ ...eventForm, capacity })} />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Event Image URL (optional — paste a direct image link)</label>
-                <input placeholder="https://example.com/event-banner.jpg" value={eventForm.image_url} onChange={(e) => setEventForm({ ...eventForm, image_url: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
-                {eventForm.image_url && (
-                  <div style={{ marginTop: '8px', borderRadius: '6px', overflow: 'hidden', maxHeight: '100px' }}>
-                    <img src={eventForm.image_url} alt="Preview" style={{ width: '100%', objectFit: 'cover', maxHeight: '100px' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                  </div>
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input type="checkbox" checked={eventForm.is_published} onChange={(e) => setEventForm({ ...eventForm, is_published: e.target.checked })} style={{ width: 'auto' }} />
-                <label style={{ fontSize: '13px', color: '#5a625d' }}>Publish Event immediately</label>
-              </div>
-            </form>
-        </Modal>
-
-      {/* Broadcast Modal */}
-      <Modal
-          open={showBroadcastModal && !!selectedEvent}
-          onClose={() => setShowBroadcastModal(false)}
-          title={`Broadcast to ${selectedEvent?.title ?? ''} attendees`}
-          description={`This will dispatch an announcement/update email to all ${eventReservations.filter((r) => r.status === 'confirmed').length} confirmed seat reservation(s).`}
-          footer={<button type="submit" form="broadcast-form" className="primary" style={{ minHeight: '44px', padding: '0 20px' }}>Send Broadcast <Send size={14} /></button>}
-        >
-            <form id="broadcast-form" onSubmit={sendBroadcast} style={{ display: 'grid', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Subject</label>
-                <input required placeholder="Important update regarding..." value={broadcastForm.subject} onChange={(e) => setBroadcastForm({ ...broadcastForm, subject: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Message Body</label>
-                <textarea required placeholder="Write your announcement details here..." value={broadcastForm.message} onChange={(e) => setBroadcastForm({ ...broadcastForm, message: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '120px' }} />
-              </div>
-            </form>
-        </Modal>
-
       {/* Gallery Item Modal */}
       <Modal
           open={showGalleryModal}
@@ -3126,46 +2693,6 @@ export function AdminPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input type="checkbox" checked={galleryForm.is_published} onChange={(e) => setGalleryForm({ ...galleryForm, is_published: e.target.checked })} style={{ width: 'auto' }} />
                 <label style={{ fontSize: '13px', color: '#5a625d' }}>Show on the public site</label>
-              </div>
-            </form>
-        </Modal>
-
-      {/* New Enrollment Modal (admin-initiated onboarding) */}
-      <Modal
-          open={showEnrollmentModal}
-          onClose={() => setShowEnrollmentModal(false)}
-          title="New Enrollment"
-          description="Create an enrollment record directly, then send the onboarding invite from the list."
-          footer={<button type="submit" form="enrollment-form" disabled={savingEnrollment} className="primary" style={{ minHeight: '44px', padding: '0 20px' }}>{savingEnrollment ? 'Creating…' : 'Create Enrollment'}</button>}
-        >
-            <form id="enrollment-form" onSubmit={saveEnrollment} style={{ display: 'grid', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Full Name</label>
-                <input required value={enrollmentForm.full_name} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, full_name: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Email</label>
-                <input required type="email" value={enrollmentForm.email} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, email: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Phone</label>
-                  <input value={enrollmentForm.phone} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, phone: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#5a625d' }}>Tier</label>
-                  <select value={enrollmentForm.tier} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, tier: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }}>
-                    {['Explorer', 'Builder', 'Professional'].map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Location</label>
-                <input value={enrollmentForm.location} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, location: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#5a625d' }}>Notes (internal)</label>
-                <textarea value={enrollmentForm.notes} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, notes: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '70px' }} />
               </div>
             </form>
         </Modal>
