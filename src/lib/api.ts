@@ -39,16 +39,90 @@ export function isApprovalBlocked(err: unknown): err is ApiError {
   return err instanceof ApiError && err.status === 409 && 'approval_request_id' in err.payload;
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// Backoff for a sleeping container. The Railway instance sleeps when idle, so
+// the first request after a quiet spell is refused outright while it wakes.
+// Roughly 7.5s of patience in total, which covers a cold start without leaving
+// a genuinely broken request hanging.
+const RETRY_DELAYS_MS = [500, 1000, 2000, 4000];
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Subscribers for the "waking up" indicator, so the UI can explain a slow first
+// load rather than just appearing frozen.
+type WakeListener = (waking: boolean) => void;
+const wakeListeners = new Set<WakeListener>();
+let wakingUp = false;
+
+/** Subscribe to backend-waking state. Returns an unsubscribe function. */
+export function onWakeStateChange(fn: WakeListener): () => void {
+  wakeListeners.add(fn);
+  return () => wakeListeners.delete(fn);
+}
+
+export function isWakingUp() {
+  return wakingUp;
+}
+
+function setWaking(next: boolean) {
+  if (wakingUp === next) return;
+  wakingUp = next;
+  wakeListeners.forEach((fn) => fn(next));
+}
+
+/**
+ * Whether a failed request may be sent again automatically.
+ *
+ * Only when the request never reached the server. `fetch` rejects solely on a
+ * network-level failure — any HTTP status resolves — so a 4xx can never land
+ * here, and a 500 is an answer we must not silently repeat.
+ *
+ * Restricted to safe methods by default because a connection that drops mid
+ * flight is indistinguishable, from the browser, from one that was refused
+ * outright: the server may already have processed the request. Replaying a POST
+ * on that guess could record a payment twice. Callers whose POST is genuinely
+ * idempotent (login, token refresh) opt in explicitly.
+ */
+function mayRetry(method: string | undefined, optIn: boolean | undefined): boolean {
+  if (optIn !== undefined) return optIn;
+  const m = (method ?? 'GET').toUpperCase();
+  return m === 'GET' || m === 'HEAD';
+}
+
+async function fetchWithRetry(url: string, init: RequestInit, retryable: boolean): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await fetch(url, init);
+      setWaking(false);
+      return response;
+    } catch (err) {
+      // A caller-initiated abort is a decision, not a failure to reach.
+      if (err instanceof DOMException && err.name === 'AbortError') throw err;
+      lastError = err;
+      if (!retryable || attempt >= RETRY_DELAYS_MS.length) break;
+      setWaking(true);
+      await sleep(RETRY_DELAYS_MS[attempt]);
+    }
+  }
+  setWaking(false);
+  throw lastError;
+}
+
+interface RequestOptions {
+  /** Force retry-on-network-failure on or off, overriding the method default. */
+  retry?: boolean;
+}
+
+async function request<T>(path: string, options: RequestInit = {}, opts: RequestOptions = {}): Promise<T> {
   const token = getToken();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetchWithRetry(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers
     }
-  });
+  }, mayRetry(options.method, opts.retry));
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new ApiError(response.status, payload);
@@ -69,7 +143,10 @@ async function requestUpload<T>(path: string, formData: FormData): Promise<T> {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error ?? 'Request failed');
+    // ApiError, not Error: an upload that fails on an expired token has to be
+    // recognisable as a 401 by the refresh handling, and a plain Error discards
+    // the status.
+    throw new ApiError(response.status, payload);
   }
   return payload as T;
 }
@@ -79,14 +156,15 @@ async function requestUpload<T>(path: string, formData: FormData): Promise<T> {
 // Blob with the header attached, then trigger a save via a temporary <a download>.
 async function downloadBlob(path: string, fileName: string): Promise<void> {
   const token = getToken();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  // A download is a GET, so it is safe to replay after a cold start.
+  const response = await fetchWithRetry(`${API_BASE_URL}${path}`, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     }
-  });
+  }, true);
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error ?? 'Download failed');
+    throw new ApiError(response.status, payload);
   }
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
@@ -101,11 +179,14 @@ async function downloadBlob(path: string, fileName: string): Promise<void> {
 
 export const api = {
   // Auth
+  // Signing in is idempotent, so it opts into retry despite being a POST —
+  // otherwise the very first action after the container sleeps is the one that
+  // fails, which is exactly when a user concludes the app is down.
   login: (email: string, password: string) =>
     request<{ token: string; user: User }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password })
-    }),
+    }, { retry: true }),
   me: () => request<User>('/auth/me'),
 
   // Public

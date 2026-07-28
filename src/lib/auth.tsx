@@ -1,10 +1,20 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { api, clearToken, getToken, setToken } from './api';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { api, ApiError, clearToken, getToken, onWakeStateChange, setToken } from './api';
 import type { User } from '../types';
 
 interface AuthState {
   user: User | null;
   loading: boolean;
+  /** The API is unreachable and the client is retrying — a sleeping container. */
+  wakingUp: boolean;
+  /**
+   * A token is held but the session could not be restored because the server
+   * could not be reached. Distinct from being signed out: the credential is
+   * still good, so the answer is to retry rather than to ask for a password.
+   */
+  connectionLost: boolean;
+  /** Re-attempt the initial session restore. */
+  retryConnection: () => void;
   login: (email: string, password: string) => Promise<User>;
   logout: () => void;
   canReachAdmin: () => boolean;
@@ -15,21 +25,46 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(Boolean(getToken()));
+  const [wakingUp, setWakingUp] = useState(false);
+  const [unreachable, setUnreachable] = useState(false);
 
-  useEffect(() => {
+  // Mirrors the api client's retry state into React. Subscribed once for the
+  // app's lifetime so any request, from any screen, can raise the indicator.
+  useEffect(() => onWakeStateChange(setWakingUp), []);
+
+  const restoreSession = useCallback(() => {
     if (!getToken()) return;
+    setLoading(true);
+    setUnreachable(false);
     api.me()
-      .then(setUser)
-      .catch(() => {
-        clearToken();
-        setUser(null);
+      .then((me) => setUser(me))
+      .catch((err) => {
+        // Only a rejected token signs the user out. This previously cleared the
+        // token on ANY failure, so a cold start — the container asleep, the
+        // first request refused — logged people out and looked like the session
+        // had expired.
+        if (err instanceof ApiError && err.status === 401) {
+          clearToken();
+          setUser(null);
+          return;
+        }
+        // Reached the retry budget without an answer. Keep the credential and
+        // say the server is unreachable; falling through to the login page here
+        // would ask for a password the user does not need to re-enter, which
+        // reads as "you were signed out" for what is really a network problem.
+        setUnreachable(true);
       })
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => { restoreSession(); }, [restoreSession]);
+
   const value = useMemo<AuthState>(() => ({
     user,
     loading,
+    wakingUp,
+    connectionLost: unreachable && Boolean(getToken()) && !user,
+    retryConnection: restoreSession,
     login: async (email, password) => {
       const response = await api.login(email, password);
       setToken(response.token);
@@ -56,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!user.permissions) return user.role === 'super_admin' || user.role === 'admin';
       return Object.values(user.permissions).some((p) => p?.read === true);
     }
-  }), [user, loading]);
+  }), [user, loading, wakingUp, unreachable, restoreSession]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
