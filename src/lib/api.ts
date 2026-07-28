@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, ReceivablesReport, AccountPayment, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, ReceivablesReport, AccountPayment, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem, ApprovalRequest, ApprovalStatus } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -15,6 +15,30 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+// ApiError carries the HTTP status and the full response body alongside the
+// message. Throwing a plain Error discarded both, which is fine for a toast but
+// not for a 409 from the approval gate — that response identifies the request
+// awaiting a decision, and the caller has to be able to read it.
+//
+// `message` is unchanged, so every existing `toast.error(err.message)` call site
+// keeps working without modification.
+export class ApiError extends Error {
+  readonly status: number;
+  readonly payload: Record<string, unknown>;
+
+  constructor(status: number, payload: Record<string, unknown>) {
+    super((payload.error as string) ?? 'Request failed');
+    this.name = 'ApiError';
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
+/** True when the server blocked this action pending an approval decision. */
+export function isApprovalBlocked(err: unknown): err is ApiError {
+  return err instanceof ApiError && err.status === 409 && 'approval_request_id' in err.payload;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -27,7 +51,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error ?? 'Request failed');
+    throw new ApiError(response.status, payload);
   }
   return payload as T;
 }
@@ -328,6 +352,31 @@ export const api = {
     request<CustomRole>(`/admin/roles/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   adminDeleteRole: (id: string) =>
     request<any>(`/admin/roles/${id}`, { method: 'DELETE' }),
+
+  // Approvals
+  // `awaiting` asks the server which requests this caller may actually decide,
+  // rather than filtering client-side — the list must never offer a button the
+  // server would refuse.
+  adminApprovals: (filter?: { status?: ApprovalStatus; mine?: boolean; awaiting?: boolean }) => {
+    const q = new URLSearchParams();
+    if (filter?.status) q.set('status', filter.status);
+    if (filter?.mine) q.set('mine', 'true');
+    if (filter?.awaiting) q.set('awaiting', 'true');
+    const qs = q.toString();
+    return request<{ items: ApprovalRequest[] }>(`/admin/approvals${qs ? `?${qs}` : ''}`);
+  },
+  adminApproveRequest: (id: string, reason?: string) =>
+    request<ApprovalRequest>(`/admin/approvals/${id}/approve`, {
+      method: 'PATCH', body: JSON.stringify({ reason: reason ?? '' })
+    }),
+  adminRejectRequest: (id: string, reason: string) =>
+    request<ApprovalRequest>(`/admin/approvals/${id}/reject`, {
+      method: 'PATCH', body: JSON.stringify({ reason })
+    }),
+  adminResubmitRequest: (id: string, summary?: string) =>
+    request<ApprovalRequest>(`/admin/approvals/${id}/resubmit`, {
+      method: 'POST', body: JSON.stringify({ summary: summary ?? '' })
+    }),
 };
 
 // Client-side guard mirroring the backend's 15 MB limit on submission uploads.

@@ -20,7 +20,16 @@ const EMAIL_MODES: { value: EmailMode; label: string; hint: string }[] = [
   { value: 'none', label: 'No email', hint: 'In-app only' },
 ];
 
-export function NotificationBell() {
+interface NotificationBellProps {
+  /**
+   * Where to send the user when they click a notification. The admin area's
+   * sections are local state rather than routes, so the bell cannot navigate on
+   * its own — the page that owns the tab state supplies this.
+   */
+  onNavigate?: (entityType: string) => void;
+}
+
+export function NotificationBell({ onNavigate }: NotificationBellProps = {}) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
@@ -125,7 +134,14 @@ export function NotificationBell() {
             {items.map((n) => (
               <div
                 key={n.id}
-                style={{ background: n.read_at ? '#f7f8f3' : '#fff', border: `1px solid ${n.read_at ? '#e2e4dd' : '#c8d3b4'}`, borderLeft: `3px solid ${n.read_at ? '#e2e4dd' : '#5f7c29'}`, borderRadius: '6px', padding: '9px 11px' }}
+                // Clickable only when the parent can actually act on it —
+                // a pointer cursor on something inert is a worse lie than no
+                // affordance at all.
+                onClick={onNavigate ? () => { onNavigate(n.entity_type); if (!n.read_at) void markRead(n.id); setOpen(false); } : undefined}
+                role={onNavigate ? 'button' : undefined}
+                tabIndex={onNavigate ? 0 : undefined}
+                onKeyDown={onNavigate ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate(n.entity_type); setOpen(false); } } : undefined}
+                style={{ background: n.read_at ? '#f7f8f3' : '#fff', border: `1px solid ${n.read_at ? '#e2e4dd' : '#c8d3b4'}`, borderLeft: `3px solid ${n.read_at ? '#e2e4dd' : '#5f7c29'}`, borderRadius: '6px', padding: '9px 11px', cursor: onNavigate ? 'pointer' : 'default' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'start' }}>
                   <div style={{ minWidth: 0 }}>
@@ -134,7 +150,7 @@ export function NotificationBell() {
                     <div style={{ fontSize: '11px', color: '#8a908a', marginTop: '3px' }}>{new Date(n.created_at).toLocaleString()}</div>
                   </div>
                   {!n.read_at && (
-                    <button type="button" onClick={() => markRead(n.id)} title="Mark read" style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '4px', padding: '5px 8px', fontSize: '11px', color: '#111512', cursor: 'pointer', flexShrink: 0 }}>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); void markRead(n.id); }} title="Mark read" style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '4px', padding: '5px 8px', fontSize: '11px', color: '#111512', cursor: 'pointer', flexShrink: 0 }}>
                       Mark read
                     </button>
                   )}

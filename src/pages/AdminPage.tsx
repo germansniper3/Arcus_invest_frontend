@@ -3,19 +3,35 @@ import {
   LogOut, RefreshCcw, UserPlus, FileText, Calendar,
   Send, CheckSquare, Plus, Edit2, Trash2,
   Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
-  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History, Sparkles, Users, Wallet, Image as ImageIcon
+  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History, Sparkles, Users, Wallet, Image as ImageIcon, ShieldCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, formatFileSize, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
+import { api, formatFileSize, isApprovalBlocked, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory, DocumentVersion, DocumentAccessLog, ReceivablesReport } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory, DocumentVersion, DocumentAccessLog, ReceivablesReport, ApprovalRequest } from '../types';
 import DocumentView, { type DocumentKind, VAT_RATE } from '../components/DocumentView';
 import { NumberField } from '../components/NumberField';
 import { Modal } from '../components/Modal';
 import { SignContractModal } from '../components/SignContractModal';
 import { NotificationBell } from '../components/NotificationBell';
 
-type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'receivables' | 'audit' | 'users' | 'gallery';
+type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'receivables' | 'approvals' | 'audit' | 'users' | 'gallery';
+
+// `consumed` is green rather than grey: it is the only status that means the
+// gated action actually happened, which is what someone scanning the list is
+// usually looking for.
+const STATUS_ACCENT: Record<string, string> = {
+  pending: '#c98745', approved: '#5f7c29', consumed: '#5f7c29',
+  rejected: '#a00', cancelled: '#8a908a',
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  'deal.close_won': 'Close deal as Won',
+  'deal.delete': 'Delete deal',
+  'contract.sign': 'Sign contract',
+  'contract.delete': 'Delete contract',
+  'payment.record': 'Record payment',
+};
 
 const ROLE_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
   super_admin: { bg: '#e7dff2', fg: '#5b3a8a', label: 'Super Admin' },
@@ -261,6 +277,15 @@ export function AdminPage() {
   const [contractHistoryLoading, setContractHistoryLoading] = useState(false);
   const [signingContract, setSigningContract] = useState<Contract | null>(null);
   const [receivables, setReceivables] = useState<ReceivablesReport | null>(null);
+  // Three lists rather than one: an approver acts on "awaiting me", a requester
+  // watches "mine", and everyone else is reading history. Filtering one list
+  // client-side would mean deciding eligibility here, where the server decides.
+  const [awaitingMe, setAwaitingMe] = useState<ApprovalRequest[]>([]);
+  const [myRequests, setMyRequests] = useState<ApprovalRequest[]>([]);
+  const [decidedRequests, setDecidedRequests] = useState<ApprovalRequest[]>([]);
+  const [rejecting, setRejecting] = useState<ApprovalRequest | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [decidingId, setDecidingId] = useState<string | null>(null);
   const [savingContract, setSavingContract] = useState(false);
   const [downloadingContractId, setDownloadingContractId] = useState<string | null>(null);
   const NIL_UUID = '00000000-0000-0000-0000-000000000000';
@@ -328,9 +353,67 @@ export function AdminPage() {
         setOpportunities(nextOpportunities);
       } else if (activeTab === 'receivables') {
         setReceivables(await api.adminReceivables());
+      } else if (activeTab === 'approvals') {
+        await loadApprovals();
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to load admin data');
+    }
+  }
+
+  async function loadApprovals() {
+    const [awaiting, mine, approved, rejected] = await Promise.all([
+      api.adminApprovals({ awaiting: true }),
+      api.adminApprovals({ mine: true }),
+      api.adminApprovals({ status: 'approved' }),
+      api.adminApprovals({ status: 'rejected' }),
+    ]);
+    setAwaitingMe(awaiting.items);
+    setMyRequests(mine.items);
+    setDecidedRequests([...approved.items, ...rejected.items]
+      .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 25));
+  }
+
+  async function approveRequest(req: ApprovalRequest) {
+    setDecidingId(req.id);
+    try {
+      await api.adminApproveRequest(req.id);
+      toast.success('Approved');
+      await loadApprovals();
+    } catch (err: any) {
+      toast.error(err.message || 'Could not approve');
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  async function submitRejection(e: React.FormEvent) {
+    e.preventDefault();
+    if (!rejecting) return;
+    setDecidingId(rejecting.id);
+    try {
+      await api.adminRejectRequest(rejecting.id, rejectReason);
+      toast.success('Rejected');
+      setRejecting(null);
+      setRejectReason('');
+      await loadApprovals();
+    } catch (err: any) {
+      toast.error(err.message || 'Could not reject');
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  async function resubmitRequest(req: ApprovalRequest) {
+    setDecidingId(req.id);
+    try {
+      await api.adminResubmitRequest(req.id);
+      toast.success('Resubmitted for approval');
+      await loadApprovals();
+    } catch (err: any) {
+      toast.error(err.message || 'Could not resubmit');
+    } finally {
+      setDecidingId(null);
     }
   }
 
@@ -355,6 +438,7 @@ export function AdminPage() {
     products: 'products', users: 'users', audit: 'audit', gallery: 'gallery',
     // The debtor book follows payment access, matching the server's mapping.
     receivables: 'payments',
+    approvals: 'approvals',
   };
   useEffect(() => {
     const needed = TAB_RESOURCE[activeTab];
@@ -1103,7 +1187,7 @@ export function AdminPage() {
       await loadPayments(opportunityForm.id);
       toast.success('Payment recorded');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to record payment');
+      if (!reportIfBlocked(err)) toast.error(err.message || 'Failed to record payment');
     } finally {
       setRecordingPayment(false);
     }
@@ -1195,18 +1279,37 @@ export function AdminPage() {
       setShowOpportunityModal(false);
       reloadPipeline();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to save opportunity');
+      if (!reportIfBlocked(err)) toast.error(err.message || 'Failed to save opportunity');
     }
   }
 
   // Fast pipeline movement: change stage inline (probability re-seeds server-side).
+  /**
+   * Reports an action the server held for approval, and points the user at the
+   * queue. Returns true when it handled the error, so callers can skip their own
+   * toast — a blocked action is not a failure and should not read like one.
+   */
+  function reportIfBlocked(err: unknown): boolean {
+    if (!isApprovalBlocked(err)) return false;
+    toast.error((err as Error).message, {
+      action: { label: 'View', onClick: () => setActiveTab('approvals') },
+      duration: 8000,
+    });
+    return true;
+  }
+
   async function moveOpportunityStage(o: Opportunity, stage: OpportunityStage) {
     if (o.stage === stage) return;
     try {
       await api.adminUpdateOpportunity(o.id, { stage });
       reloadPipeline();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to move opportunity');
+      // Reload either way. The <select> is uncontrolled between renders, so a
+      // refused move otherwise leaves the dropdown showing a stage the server
+      // rejected — the exact "it looked like it worked" failure this feature
+      // exists to prevent.
+      reloadPipeline();
+      if (!reportIfBlocked(err)) toast.error(err.message || 'Failed to move opportunity');
     }
   }
 
@@ -1218,7 +1321,7 @@ export function AdminPage() {
       setShowOpportunityModal(false);
       reloadPipeline();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to delete opportunity');
+      if (!reportIfBlocked(err)) toast.error(err.message || 'Failed to delete opportunity');
     }
   }
 
@@ -1323,7 +1426,7 @@ export function AdminPage() {
       setShowContractModal(false);
       setContracts(await api.adminListContracts());
     } catch (err: any) {
-      toast.error(err.message || 'Failed to delete contract');
+      if (!reportIfBlocked(err)) toast.error(err.message || 'Failed to delete contract');
     }
   }
   async function downloadContract(ct: Contract) {
@@ -1352,6 +1455,7 @@ export function AdminPage() {
             ['accounts', 'Accounts & VSI', Building2, can('accounts')],
             ['contracts', 'Contracts', ScrollText, can('contracts')],
             ['receivables', 'Receivables', Wallet, can('payments')],
+            ['approvals', 'Approvals', ShieldCheck, can('approvals')],
             ['enrollments', 'Enrollments', UserPlus, can('enrollments')],
             ['students', 'Students Portal', GraduationCap, can('students')],
             ['events', 'Events Manager', Calendar, can('events')],
@@ -1375,7 +1479,17 @@ export function AdminPage() {
         <div className="rail-actions">
           {/* Gated on the permission the inbox routes actually require, so a
               custom role without it never sees a bell that would 403. */}
-          {can('notifications', 'read') && <NotificationBell />}
+          {can('notifications', 'read') && (
+            <NotificationBell
+              onNavigate={(entityType) => {
+                // entity_type mirrors the server's resource names, which are
+                // also the tab keys for the sections that have one.
+                const tab = entityType as Tab;
+                const resource = TAB_RESOURCE[tab];
+                if (resource && can(resource)) setActiveTab(tab);
+              }}
+            />
+          )}
           <button onClick={() => loadData()}><RefreshCcw size={17} /> Refresh Data</button>
           <button onClick={logout}><LogOut size={17} /> Logout</button>
         </div>
@@ -1391,6 +1505,7 @@ export function AdminPage() {
               {activeTab === 'accounts' && 'Accounts & Vertical Sales Index'}
               {activeTab === 'contracts' && 'Contract Repository'}
               {activeTab === 'receivables' && 'Receivables'}
+              {activeTab === 'approvals' && 'Approvals'}
               {activeTab === 'enrollments' && 'Innovation Hub Intake'}
               {activeTab === 'students' && 'Student Capstone Milestones'}
               {activeTab === 'events' && 'Public Programs & Events'}
@@ -2504,6 +2619,70 @@ export function AdminPage() {
             </div>
           );
         })()}
+
+        {activeTab === 'approvals' && (
+          <section className="data-section" style={{ marginTop: 0 }}>
+            <p style={{ marginBottom: '16px' }}>
+              High-consequence actions held for a second pair of eyes. Approving does not perform the action — it unblocks whoever raised it, who then retries it themselves.
+            </p>
+
+            {([
+              ['Awaiting your decision', awaitingMe, 'decide'],
+              ['Your requests', myRequests, 'mine'],
+              ['Recently decided', decidedRequests, 'history'],
+            ] as const).map(([heading, rows, mode]) => (
+              <div key={heading} style={{ marginBottom: '26px' }}>
+                <h3 style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 800, color: '#5a625d', marginBottom: '10px' }}>
+                  {heading} <span style={{ color: '#8a908a', fontWeight: 600 }}>({rows.length})</span>
+                </h3>
+                {rows.length === 0 ? (
+                  <p className="empty" style={{ fontSize: '13px' }}>
+                    {mode === 'decide' ? 'Nothing is waiting on you.' : mode === 'mine' ? 'You have no requests open.' : 'No decisions yet.'}
+                  </p>
+                ) : (
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {rows.map((r) => (
+                      <div key={r.id} style={{ background: '#fff', border: '1px solid #dfe1da', borderLeft: `4px solid ${STATUS_ACCENT[r.status] ?? '#8a908a'}`, borderRadius: '8px', padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '14px', fontWeight: 700, color: '#111512' }}>{r.summary}</div>
+                            <div style={{ fontSize: '12px', color: '#8a908a', marginTop: '4px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                              <span>{ACTION_LABELS[r.action] ?? r.action}</span>
+                              <span>by {r.requester_name || 'Unknown'}</span>
+                              <span>{new Date(r.created_at).toLocaleDateString()}</span>
+                              {r.required_count > 1 && <span>{r.approved_count} of {r.required_count} approvals</span>}
+                              {r.supersedes_id && <span style={{ color: '#c98745' }}>resubmitted</span>}
+                            </div>
+                            {r.decisions.filter((d) => d.reason).map((d) => (
+                              <div key={d.id} style={{ fontSize: '12px', color: d.decision === 'rejected' ? '#a00' : '#5a625d', marginTop: '6px' }}>
+                                {d.approver_name} {d.decision}: “{d.reason}”
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+                            <span style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 800, color: STATUS_ACCENT[r.status] ?? '#8a908a' }}>{r.status}</span>
+                            {mode === 'decide' && can('approvals', 'update') && (
+                              <>
+                                <button onClick={() => approveRequest(r)} disabled={decidingId === r.id} className="primary" style={{ padding: '6px 12px', fontSize: '13px', borderRadius: '6px', cursor: 'pointer' }}>Approve</button>
+                                <button onClick={() => { setRejecting(r); setRejectReason(''); }} disabled={decidingId === r.id} style={{ padding: '6px 12px', fontSize: '13px', borderRadius: '6px', background: '#fff', border: '1px solid #a00', color: '#a00', cursor: 'pointer' }}>Reject</button>
+                              </>
+                            )}
+                            {mode === 'mine' && r.status === 'rejected' && can('approvals', 'create') && (
+                              <button onClick={() => resubmitRequest(r)} disabled={decidingId === r.id} style={{ padding: '6px 12px', fontSize: '13px', borderRadius: '6px', background: '#eef0ea', border: '1px solid #dfe1da', color: '#111512', cursor: 'pointer' }}>Revise &amp; resubmit</button>
+                            )}
+                            {mode === 'mine' && r.status === 'approved' && (
+                              <span style={{ fontSize: '12px', color: '#5f7c29' }}>Retry the action to apply it</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </section>
+        )}
 
         {/* Contracts Tab */}
         {activeTab === 'receivables' && (
@@ -3736,6 +3915,36 @@ export function AdminPage() {
         onClose={() => setSigningContract(null)}
         onSigned={() => { void api.adminListContracts().then(setContracts).catch(() => { /* the toast already reported it */ }); }}
       />
+
+      {/* Driven by the `open` prop rather than conditionally rendered, so focus
+          returns to where it came from when the dialog closes. */}
+      <Modal
+        open={rejecting !== null}
+        onClose={() => { setRejecting(null); setRejectReason(''); }}
+        title="Reject request"
+        description={rejecting?.summary}
+        width="min(520px, 100%)"
+        footer={
+          <button type="submit" form="reject-form" disabled={decidingId !== null || rejectReason.trim() === ''}
+            style={{ padding: '9px 16px', fontSize: '14px', borderRadius: '6px', background: '#a00', border: '1px solid #a00', color: '#fff', cursor: rejectReason.trim() === '' ? 'not-allowed' : 'pointer', opacity: rejectReason.trim() === '' ? 0.6 : 1 }}>
+            Reject
+          </button>
+        }
+      >
+        <form id="reject-form" onSubmit={submitRejection} style={{ display: 'grid', gap: '10px' }}>
+          <label style={{ fontSize: '12px', color: '#5a625d' }}>
+            Reason — the requester sees this and revises against it, so a rejection without one is a dead end.
+          </label>
+          <textarea
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            required
+            rows={4}
+            placeholder="e.g. Discount exceeds what was agreed for this account"
+            style={{ width: '100%', padding: '10px 12px', fontSize: '14px', color: '#111512', background: '#f7f8f3', border: '1px solid #d6d8d0', borderRadius: '6px', resize: 'vertical', fontFamily: 'inherit' }}
+          />
+        </form>
+      </Modal>
     </main>
   );
 }

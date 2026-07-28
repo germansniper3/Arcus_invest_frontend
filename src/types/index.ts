@@ -489,12 +489,68 @@ export type EmailMode = 'per_event' | 'digest' | 'none';
 export interface Notification {
   id: string;
   created_at: string;
-  kind: 'contract_renewal' | 'submission_review' | 'extension_pending' | 'deal_stalled';
+  kind: 'contract_renewal' | 'submission_review' | 'extension_pending' | 'deal_stalled'
+    | 'approval_pending' | 'approval_decided';
   title: string;
   body: string;
   entity_type: string;
   entity_id?: string | null;
   read_at?: string | null;
+}
+
+/** The action codes the approval engine can gate. */
+export type ApprovalAction =
+  | 'deal.close_won' | 'deal.delete' | 'contract.sign'
+  | 'contract.delete' | 'payment.record';
+
+export type ApprovalStatus =
+  | 'pending' | 'approved' | 'rejected' | 'consumed' | 'cancelled';
+
+/** One approver's vote, and the carrier of a rejection reason. */
+export interface ApprovalDecision {
+  id: string;
+  created_at: string;
+  approver_id: string;
+  approver_name: string;
+  approver_role: string;
+  decision: 'approved' | 'rejected';
+  reason: string;
+}
+
+/**
+ * A high-consequence action blocked pending sign-off. Approving does not perform
+ * the action — the requester retries it and the gate lets it through.
+ */
+export interface ApprovalRequest {
+  id: string;
+  created_at: string;
+  action: ApprovalAction;
+  entity_type: string;
+  entity_id: string;
+  amount: number;
+  summary: string;
+  status: ApprovalStatus;
+  requester_id?: string | null;
+  requester_name: string;
+  required_count: number;
+  approver_role: string;
+  approved_count: number;
+  supersedes_id?: string | null;
+  decided_at?: string | null;
+  consumed_at?: string | null;
+  decisions: ApprovalDecision[];
+}
+
+/** A configured threshold: at or above min_amount, action needs sign-off. */
+export interface ApprovalRule {
+  id: string;
+  created_at: string;
+  action: ApprovalAction;
+  min_amount: number;
+  required_count: number;
+  approver_role: string;
+  is_active: boolean;
+  note: string;
 }
 
 /** A recorded read of a stored file — who downloaded it, when, from where. */
