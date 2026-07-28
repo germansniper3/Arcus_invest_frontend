@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { PackagePlus, PackageMinus, History } from 'lucide-react';
+import { PackagePlus, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../lib/api';
 import type { Product, StockMovement, StockMovementKind } from '../../types';

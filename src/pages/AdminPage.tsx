@@ -9,7 +9,7 @@ import {
 import { toast } from 'sonner';
 import { api, formatFileSize, isApprovalBlocked, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory, DocumentVersion, DocumentAccessLog, ReceivablesReport, ApprovalRequest, ApprovalRule, ApprovalAction } from '../types';
+import type { QuoteRequest, User, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory, DocumentVersion, DocumentAccessLog, ReceivablesReport, ApprovalRequest, ApprovalRule, ApprovalAction } from '../types';
 import DocumentView, { type DocumentKind, VAT_RATE } from '../components/DocumentView';
 import { NumberField } from '../components/NumberField';
 import { Modal } from '../components/Modal';

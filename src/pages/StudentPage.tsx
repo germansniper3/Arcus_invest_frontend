@@ -653,7 +653,8 @@ export function StudentPage() {
                   const accepted = mine.some((s) => s.status === 'accepted');
                   const prevAccepted = i === 0 || submissions.some((s) => s.kind === SUBMISSION_STEPS[i - 1].key && s.status === 'accepted');
                   const unlocked = i === 0 || prevAccepted;
-                  const active = unlocked && !accepted;
+                  // `state` below carries the same three cases, so the separate
+                  // `active` boolean it replaced was dead.
                   const state: 'done' | 'active' | 'locked' = accepted ? 'done' : unlocked ? 'active' : 'locked';
                   const accent = state === 'done' ? '#5f7c29' : state === 'active' ? '#2a5788' : '#b0b4ab';
 
