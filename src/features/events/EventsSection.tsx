@@ -278,7 +278,7 @@ export function EventsSection({ active }: Props) {
             <NumberField required value={eventForm.capacity} onChange={(capacity) => setEventForm({ ...eventForm, capacity })} />
           </div>
           <div>
-            <label style={{ fontSize: '12px', color: '#5a625d' }}>Event Image URL (optional — paste a direct image link)</label>
+            <label style={{ fontSize: '12px', color: '#5a625d' }}>Event image link (optional)</label>
             <input placeholder="https://example.com/event-banner.jpg" value={eventForm.image_url} onChange={(e) => setEventForm({ ...eventForm, image_url: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
             {eventForm.image_url && (
               <div style={{ marginTop: '8px', borderRadius: '6px', overflow: 'hidden', maxHeight: '100px' }}>

@@ -535,7 +535,7 @@ export function AdminPage() {
     if (!confirm(`Convert "${item.name}" into a pipeline opportunity?`)) return;
     try {
       await api.convertQuoteToOpportunity(item.id);
-      toast.success('Lead converted — opening the pipeline');
+      toast.success('Lead converted. Opening the pipeline.');
       setSelectedQuote(null);
       setActiveTab('pipeline');
     } catch (err: any) {
@@ -721,7 +721,7 @@ export function AdminPage() {
 
   async function uploadGalleryImage(file: File) {
     if (file.size > MAX_PRODUCT_IMAGE_SIZE) {
-      toast.error('Image too large — the maximum size is 5 MB');
+      toast.error('That image is over the 5 MB limit.');
       return;
     }
     setUploadingGalleryImage(true);
@@ -1881,7 +1881,7 @@ export function AdminPage() {
 
                             {!latest && (
                               <p style={{ fontSize: '11px', color: '#8a908a', margin: 0, paddingLeft: '30px' }}>
-                                {state === 'locked' ? `Locked — unlocks after Step ${i} is approved.` : 'Awaiting student upload.'}
+                                {state === 'locked' ? `Unlocks once Step ${i} is approved.` : 'Awaiting student upload.'}
                               </p>
                             )}
 
@@ -2048,9 +2048,9 @@ export function AdminPage() {
               {/* Vertical Sales Index — sectors ranked */}
               <section className="data-section" style={{ marginTop: 0 }}>
                 <h2>Vertical Sales Index</h2>
-                <p style={{ marginBottom: '16px' }}>Revenue ranked by sector — closed-won plus live pipeline, derived from the opportunity pipeline.</p>
+                <p style={{ marginBottom: '16px' }}>Revenue ranked by sector: closed-won plus live pipeline.</p>
                 {sectors.length === 0 ? (
-                  <p className="empty">No sector data yet — set a sector on opportunities in the pipeline and they'll rank here.</p>
+                  <p className="empty">Sectors rank here once deals carry one.</p>
                 ) : (
                   <div style={{ display: 'grid', gap: '10px' }}>
                     {sectors.map((s, i) => (
@@ -2080,7 +2080,7 @@ export function AdminPage() {
                 <h2>Top Accounts</h2>
                 <p style={{ marginBottom: '16px' }}>Accounts ranked by total value (open pipeline + closed-won). Click an account for cross-sell &amp; upsell suggestions.</p>
                 {accountsList.length === 0 ? (
-                  <p className="empty">No accounts yet — set an account name on opportunities in the pipeline.</p>
+                  <p className="empty">Name the account on a deal and it will appear here.</p>
                 ) : (
                   <div style={{ overflowX: 'auto', border: '1px solid #d6d8d0', borderRadius: '8px', background: '#fff' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px', fontSize: '13px', color: '#111512' }}>
@@ -2124,7 +2124,7 @@ export function AdminPage() {
                                   {recsLoading ? (
                                     <p style={{ fontSize: '13px', color: '#8a908a', margin: '10px 0' }}>Analysing account…</p>
                                   ) : !recs || recs.recommendations.length === 0 ? (
-                                    <p style={{ fontSize: '13px', color: '#8a908a', margin: '10px 0' }}>No suggestions — the catalogue has nothing new to offer this account yet.</p>
+                                    <p style={{ fontSize: '13px', color: '#8a908a', margin: '10px 0' }}>This account already has everything in the catalogue.</p>
                                   ) : (
                                     <div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0 10px' }}>
@@ -2174,7 +2174,7 @@ export function AdminPage() {
         {activeTab === 'approvals' && (
           <section className="data-section" style={{ marginTop: 0 }}>
             <p style={{ marginBottom: '16px' }}>
-              High-consequence actions held for a second pair of eyes. Approving does not perform the action — it unblocks whoever raised it, who then retries it themselves.
+              High-consequence actions held for a second pair of eyes. Approving does not perform the action. It unblocks whoever raised it, and they retry it themselves.
             </p>
 
             <div style={{ marginBottom: '22px', background: '#fff', border: '1px solid #dfe1da', borderRadius: '8px' }}>
@@ -2191,7 +2191,7 @@ export function AdminPage() {
                     An action is gated at or above its threshold. Where several apply, the highest one wins. With no threshold configured, an action is not gated at all.
                   </p>
                   {approvalRules.length === 0 ? (
-                    <p className="empty" style={{ fontSize: '13px' }}>No thresholds configured — nothing is being gated.</p>
+                    <p className="empty" style={{ fontSize: '13px' }}>Nothing is being gated. Add a threshold to require approval above an amount.</p>
                   ) : (
                     <div style={{ display: 'grid', gap: '6px', marginBottom: '12px' }}>
                       {approvalRules.map((r) => (
@@ -2199,7 +2199,7 @@ export function AdminPage() {
                           <div style={{ fontSize: '13px', color: '#111512' }}>
                             <strong>{ACTION_LABELS[r.action] ?? r.action}</strong>
                             <span style={{ color: '#5a625d' }}>
-                              {' '}at or above {ZMW(r.min_amount)} — {r.required_count} approval{r.required_count > 1 ? 's' : ''} from {r.approver_role}
+                              {' '}at or above {ZMW(r.min_amount)}: {r.required_count} approval{r.required_count > 1 ? 's' : ''} from {r.approver_role}
                             </span>
                             {r.note && <span style={{ color: '#8a908a' }}> · {r.note}</span>}
                           </div>
@@ -2283,7 +2283,7 @@ export function AdminPage() {
         {activeTab === 'receivables' && (
           <section className="data-section" style={{ marginTop: 0 }}>
             <p style={{ marginBottom: '16px' }}>
-              What clients still owe, aged from the date each deal was invoiced. Balances are computed live from line items and recorded payments — nothing here is stored, so it cannot drift.
+              What clients still owe, aged from the date each deal was invoiced. Balances are computed live from line items and recorded payments. Nothing here is stored, so it cannot drift.
             </p>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
@@ -2347,7 +2347,7 @@ export function AdminPage() {
           <section className="data-section" style={{ marginTop: 0 }}>
             <p style={{ marginBottom: '16px' }}>Store agreements, track renewals, and download signed documents. Renewals due within {RENEWAL_SOON_DAYS} days are flagged.</p>
             {sectionLoading ? <Skeleton /> : contracts.length === 0 ? (
-              <p className="empty">No contracts yet — click “New Contract” to add one.</p>
+              <p className="empty">Add your first contract.</p>
             ) : (
               <div style={{ display: 'grid', gap: '12px' }}>
                 {contracts.map((ct) => {
@@ -2408,9 +2408,9 @@ export function AdminPage() {
         {/* Audit Log Tab */}
         {activeTab === 'audit' && (
           <section className="data-section" style={{ marginTop: 0 }}>
-            <p style={{ marginBottom: '16px' }}>Immutable trail of admin changes — who did what, and when. Showing the {auditLogs.length} most recent {auditLogs.length === 1 ? 'entry' : 'entries'}.</p>
+            <p style={{ marginBottom: '16px' }}>Immutable trail of admin changes: who did what, and when. Showing the {auditLogs.length} most recent {auditLogs.length === 1 ? 'entry' : 'entries'}.</p>
             {sectionLoading ? <Skeleton /> : auditLogs.length === 0 ? (
-              <p className="empty">No audit entries yet — changes made in the portal will appear here.</p>
+              <p className="empty">Every change made in the portal is recorded here.</p>
             ) : (
               <div style={{ display: 'grid', gap: '8px' }}>
                 {auditLogs.map((a) => {
@@ -2442,7 +2442,7 @@ export function AdminPage() {
               Photos of Arcus's work, shown in the Gallery section of the public site. Lower position numbers appear first. Unpublished items stay hidden from visitors.
             </p>
             {sectionLoading ? <Skeleton /> : gallery.length === 0 ? (
-              <p className="empty">No gallery items yet — add one and it replaces the built-in placeholder photos on the public site.</p>
+              <p className="empty">The public site is showing placeholder photos. Add a gallery item to replace them.</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
                 {gallery.map((item) => (
@@ -2603,14 +2603,14 @@ export function AdminPage() {
                       </>
                     ) : (
                       <>
-                        <span>Host: <strong style={{ color: '#111512' }}>{emailStatus.host || '— not set —'}</strong></span>
-                        <span>Port: <strong style={{ color: '#111512' }}>{emailStatus.port || '— not set —'}</strong></span>
+                        <span>Host: <strong style={{ color: '#111512' }}>{emailStatus.host || 'Not set'}</strong></span>
+                        <span>Port: <strong style={{ color: '#111512' }}>{emailStatus.port || 'Not set'}</strong></span>
                         <span>Username: <strong style={{ color: '#111512' }}>{emailStatus.has_username ? 'set' : 'not set'}</strong></span>
                         <span>Password: <strong style={{ color: '#111512' }}>{emailStatus.has_password ? 'set' : 'not set'}</strong></span>
                       </>
                     )}
-                    <span>From: <strong style={{ color: '#111512' }}>{emailStatus.from || '— not set —'}</strong></span>
-                    <span>Claim-link base: <strong style={{ color: '#111512' }}>{emailStatus.frontend_url || '— not set —'}</strong></span>
+                    <span>From: <strong style={{ color: '#111512' }}>{emailStatus.from || 'Not set'}</strong></span>
+                    <span>Claim-link base: <strong style={{ color: '#111512' }}>{emailStatus.frontend_url || 'Not set'}</strong></span>
                   </div>
                   {(emailStatus.issues ?? []).length > 0 && (
                     <ul style={{ margin: 0, paddingLeft: '18px', display: 'grid', gap: '4px' }}>
@@ -2805,7 +2805,7 @@ export function AdminPage() {
                 <label style={{ fontSize: '12px', color: '#5a625d', fontWeight: 700 }}>Resource Grants &amp; Scope</label>
                 {editingRole?.is_built_in && (
                   <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#8a6d1a', background: '#f7edc8', border: '1px solid #e8dca4', borderRadius: '6px', padding: '8px 10px' }}>
-                    <Lock size={12} style={{ verticalAlign: '-2px' }} /> Built-in role — grants are fixed and reset on every deploy. Label and description are editable; to vary permissions, create a custom role.
+                    <Lock size={12} style={{ verticalAlign: '-2px' }} /> Built-in role. Its grants are fixed and reset on every deploy. The label and description are editable. To vary permissions, create a custom role.
                   </p>
                 )}
                 <div style={{ overflowX: 'auto', border: '1px solid #d8dbd1', borderRadius: '6px', marginTop: '6px' }}>
@@ -2989,7 +2989,7 @@ export function AdminPage() {
                   </button>
                 </div>
                 {opportunityForm.contacts.length === 0 ? (
-                  <p style={{ fontSize: '12px', color: '#8a908a', margin: 0 }}>No stakeholders yet — add the decision makers and champions on this deal.</p>
+                  <p style={{ fontSize: '12px', color: '#8a908a', margin: 0 }}>Who decides on this deal? Add them here.</p>
                 ) : (
                   <div style={{ display: 'grid', gap: '8px' }}>
                     {opportunityForm.contacts.map((ct, i) => (
@@ -3017,7 +3017,7 @@ export function AdminPage() {
                   </button>
                 </div>
                 {opportunityForm.line_items.length === 0 ? (
-                  <p style={{ fontSize: '12px', color: '#8a908a', margin: 0 }}>No line items — documents fall back to a single line at the deal value.</p>
+                  <p style={{ fontSize: '12px', color: '#8a908a', margin: 0 }}>Without line items, quotations show one line at the deal value.</p>
                 ) : (
                   <div style={{ display: 'grid', gap: '8px' }}>
                     {opportunityForm.line_items.map((li, i) => (
@@ -3096,7 +3096,7 @@ export function AdminPage() {
                 {activitiesLoading ? (
                   <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>Loading activity…</p>
                 ) : activities.length === 0 ? (
-                  <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>No engagement logged yet — record the first touchpoint above.</p>
+                  <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>Log the first call, meeting or note above.</p>
                 ) : (
                   <div style={{ display: 'grid', gap: '10px' }}>
                     {activities.map((a) => {
@@ -3151,7 +3151,7 @@ export function AdminPage() {
                 )}
 
                 {payments.length === 0 ? (
-                  <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>No payments recorded — a receipt becomes available once a payment is logged.</p>
+                  <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>Record a payment to generate a receipt.</p>
                 ) : (
                   <div style={{ display: 'grid', gap: '8px' }}>
                     {payments.map((p) => (
@@ -3234,7 +3234,7 @@ export function AdminPage() {
               <div>
                 <label style={{ fontSize: '12px', color: '#5a625d' }}>Linked Deal (optional)</label>
                 <select value={contractForm.opportunity_id} onChange={(e) => setContractForm({ ...contractForm, opportunity_id: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }}>
-                  <option value="">— none —</option>
+                  <option value="">None</option>
                   {opportunities.map((o) => <option key={o.id} value={o.id}>{o.name}{o.account_name ? ` — ${o.account_name}` : ''}</option>)}
                 </select>
               </div>
@@ -3261,7 +3261,7 @@ export function AdminPage() {
                   style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1', padding: '8px' }}
                 />
                 {contractForm.id && !contractFile && (
-                  <p style={{ fontSize: '11px', color: '#8a908a', margin: '4px 0 0' }}>Leave empty to keep the current file. Choosing a file adds a new version — the current one stays downloadable below.</p>
+                  <p style={{ fontSize: '11px', color: '#8a908a', margin: '4px 0 0' }}>Leave this empty to keep the current file. Choosing one adds a version. The file it replaces stays downloadable below.</p>
                 )}
               </div>
               <div>
@@ -3284,7 +3284,7 @@ export function AdminPage() {
                 {contractHistoryLoading ? (
                   <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>Loading history…</p>
                 ) : contractVersions.length === 0 ? (
-                  <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>No document uploaded yet. Every upload is kept as a version — replacing a file never destroys the one before it.</p>
+                  <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>No document uploaded yet. Every upload is kept as a version, so replacing a file never destroys the one before it.</p>
                 ) : (
                   <div style={{ display: 'grid', gap: '8px' }}>
                     {contractVersions.map((v) => (
@@ -3411,7 +3411,7 @@ export function AdminPage() {
       >
         <form id="reject-form" onSubmit={submitRejection} style={{ display: 'grid', gap: '10px' }}>
           <label style={{ fontSize: '12px', color: '#5a625d' }}>
-            Reason — the requester sees this and revises against it, so a rejection without one is a dead end.
+            Reason. The requester sees this and revises against it, so a rejection without one is a dead end.
           </label>
           <textarea
             value={rejectReason}

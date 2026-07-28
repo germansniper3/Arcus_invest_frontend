@@ -16,7 +16,7 @@ const POLL_INTERVAL_MS = 60_000;
 
 const EMAIL_MODES: { value: EmailMode; label: string; hint: string }[] = [
   { value: 'digest', label: 'A digest', hint: 'One message covering everything outstanding' },
-  { value: 'per_event', label: 'Every event', hint: 'A message per item — expect volume' },
+  { value: 'per_event', label: 'Every event', hint: 'A message per item. Expect volume.' },
   { value: 'none', label: 'No email', hint: 'In-app only' },
 ];
 

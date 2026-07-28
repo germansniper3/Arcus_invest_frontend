@@ -293,7 +293,7 @@ export function StudentPage() {
                 <CheckSquare size={22} style={{ color: 'var(--accent)' }} />
                 <h2 style={{ margin: 0, fontSize: '22px' }}>Your Milestone Checklist</h2>
               </div>
-              <p style={{ fontSize: '13px', marginBottom: '20px' }}>Tick a milestone to submit it for mentor review (tick again to withdraw). A mentor signs it off as completed — signed-off items are locked. Feedback appears under each item.</p>
+              <p style={{ fontSize: '13px', marginBottom: '20px' }}>Tick a milestone to submit it for mentor review (tick again to withdraw). A mentor signs it off as completed. Signed-off items are locked. Feedback appears under each item.</p>
               
               <div style={{ display: 'grid', gap: '12px' }}>
                 {milestones.length === 0 ? (
@@ -705,10 +705,10 @@ export function StudentPage() {
                         {state === 'active' && (
                           <form onSubmit={(e) => submitStep(e, step.key, step.label)} style={{ display: 'grid', gap: '10px', marginTop: latest ? '4px' : 0 }}>
                             {latest && latest.status === 'revise' && (
-                              <p style={{ fontSize: '12px', color: '#c98745', margin: 0 }}>Revision requested — upload an updated file below.</p>
+                              <p style={{ fontSize: '12px', color: '#c98745', margin: 0 }}>Revision requested. Upload an updated file below.</p>
                             )}
                             <input
-                              placeholder={`Title (optional — defaults to "${step.label}")`}
+                              placeholder={`Title (optional, defaults to "${step.label}")`}
                               value={subForm.title}
                               onChange={(e) => setSubForm({ ...subForm, title: e.target.value })}
                               style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}

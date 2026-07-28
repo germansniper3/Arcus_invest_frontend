@@ -55,7 +55,7 @@ function CannotReachServer() {
     <main className="loading-shell" style={{ flexDirection: 'column', gap: '14px', textAlign: 'center', padding: '24px' }}>
       <h1 style={{ fontSize: '19px', color: '#111512', margin: 0 }}>Cannot reach the server</h1>
       <p style={{ fontSize: '14px', color: '#5a625d', margin: 0, maxWidth: '46ch' }}>
-        You are still signed in — the server just did not answer in time. It sleeps when idle, so
+        You are still signed in. The server just did not answer in time. It sleeps when idle, so
         this usually clears on a second attempt.
       </p>
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>

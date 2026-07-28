@@ -175,7 +175,7 @@ export function CatalogueSection({ active }: Props) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                   <div>
                     <h3 style={{ margin: 0, fontSize: '20px' }}>{selected.name}</h3>
-                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#5a625d' }}>{selected.is_published ? '✓ Published on site' : '⏸ Draft — not public'}</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#5a625d' }}>{selected.is_published ? '✓ Published on site' : '⏸ Draft, not public'}</p>
                   </div>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     {can('products', 'update') && (
@@ -261,7 +261,7 @@ export function CatalogueSection({ active }: Props) {
                 </button>
               )}
             </div>
-            <p style={{ fontSize: '11px', color: '#8a908a', margin: '6px 0 4px' }}>PNG, JPG, WEBP or GIF up to 5 MB — or paste an image link below.</p>
+            <p style={{ fontSize: '11px', color: '#8a908a', margin: '6px 0 4px' }}>PNG, JPG, WEBP or GIF up to 5 MB. You can paste an image link instead.</p>
             <input placeholder="https://example.com/product-photo.jpg" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
             {form.image_url && (
               <div style={{ marginTop: '8px', borderRadius: '6px', overflow: 'hidden', maxHeight: '120px' }}>

@@ -52,7 +52,7 @@ export function PublicSite() {
             </p>
             <h1>ARCUS INVESTMENTS</h1>
             <p style={{ fontSize: '20px', color: '#ede8d8', lineHeight: '1.6', marginBottom: '32px' }}>
-              Whether you're building from scratch, optimizing existing designs, or troubleshooting faults — we’re your partner.
+              Whether you're building from scratch, optimizing existing designs, or troubleshooting faults, we’re your partner.
             </p>
             <div className="hero-actions" style={{ display: 'flex', gap: '14px' }}>
               <a href="#quote" className="primary" style={{ padding: '0 24px' }}>Get A Quote <ArrowRight size={18} /></a>
@@ -183,7 +183,7 @@ export function PublicSite() {
               </div>
             ) : (
               <div style={{ border: '1px dashed var(--line)', borderRadius: '12px', padding: '40px', textAlign: 'center', color: '#b8b7ad' }}>
-                Product catalogue coming soon — request a quote for custom builds.
+                Product catalogue coming soon. Ask us for a quote on custom builds.
               </div>
             )}
           </div>

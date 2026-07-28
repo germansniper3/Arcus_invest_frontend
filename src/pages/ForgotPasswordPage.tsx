@@ -49,7 +49,7 @@ export function ForgotPasswordPage() {
                 used once and expires in an hour.
               </p>
               <p className="sub">
-                Nothing arrived? Check spam, or try again — the address may not be registered.
+                Nothing arrived? Check spam. The address may also not be registered.
               </p>
             </div>
             <div className="auth-meta">

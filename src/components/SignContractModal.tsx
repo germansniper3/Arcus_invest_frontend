@@ -143,7 +143,7 @@ export function SignContractModal({ open, contract, onClose, onSigned }: SignCon
     <Modal
       open={open}
       onClose={onClose}
-      title={`Sign — ${contract?.title ?? ''}`}
+      title={`Sign ${contract?.title ?? ''}`}
       description="Draw your signature, place it on the page, then sign. The unsigned document is kept as its own version."
       width="min(760px, 100%)"
       footer={
@@ -192,7 +192,7 @@ export function SignContractModal({ open, contract, onClose, onSigned }: SignCon
         </div>
 
         <div>
-          <label style={{ fontSize: '12px', color: '#5a625d' }}>Placement — click the page</label>
+          <label style={{ fontSize: '12px', color: '#5a625d' }}>Placement: click the page</label>
           {/* Schematic page, not a render of the document. The fractions taken
               from a click here are applied to the real page server-side. */}
           <div

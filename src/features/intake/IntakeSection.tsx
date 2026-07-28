@@ -81,7 +81,7 @@ export function IntakeSection({ active }: Props) {
     setSaving(true);
     try {
       await api.adminCreateEnrollment(form);
-      toast.success('Enrollment created — you can now send the onboarding invite.');
+      toast.success('Enrollment created. You can send the invite now.');
       setShowModal(false);
       load();
     } catch (err: any) {
