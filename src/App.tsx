@@ -16,8 +16,8 @@ export default function App() {
       <Route path="/arcus-innovation-hub-enrollment-manager" element={<EnrollmentPage />} />
       <Route path="/claim-invitation" element={<ClaimInvitationPage />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/admin" element={<ProtectedRoute roles={['super_admin', 'admin', 'admissions']}><AdminPage /></ProtectedRoute>} />
-      <Route path="/student" element={<ProtectedRoute roles={['student']}><StudentPage /></ProtectedRoute>} />
+      <Route path="/admin" element={<ProtectedRoute surface="admin"><AdminPage /></ProtectedRoute>} />
+      <Route path="/student" element={<ProtectedRoute surface="student"><StudentPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
