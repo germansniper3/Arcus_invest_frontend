@@ -4,7 +4,7 @@ export type PermissionResource =
   | 'opportunities' | 'accounts' | 'contracts' | 'payments' | 'quotes'
   | 'enrollments' | 'students' | 'events' | 'products' | 'users'
   | 'audit' | 'email' | 'metrics' | 'roles' | 'gallery' | 'notifications'
-  | 'approvals';
+  | 'approvals' | 'expenses' | 'counter_sales';
 
 export interface ResourcePermission {
   read: boolean;

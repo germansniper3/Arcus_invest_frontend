@@ -231,7 +231,11 @@ export function AdminPage() {
   const ALL_RESOURCES: PermissionResource[] = [
     'opportunities', 'accounts', 'contracts', 'payments', 'quotes',
     'enrollments', 'students', 'events', 'products', 'users',
-    'audit', 'email', 'metrics', 'roles', 'approvals'
+    'audit', 'email', 'metrics', 'roles', 'approvals',
+    // Money out and walk-in selling. Both are separate resources from payments
+    // and opportunities so a counter operator can be given the till without the
+    // pipeline, and a bookkeeper the supplier ledger without either.
+    'expenses', 'counter_sales'
   ];
   const [roles, setRoles] = useState<CustomRole[]>([]);
   const [showRoleModal, setShowRoleModal] = useState(false);
