@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, ReceivablesReport, AccountPayment, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem, ApprovalRequest, ApprovalStatus, ApprovalRule, ApprovalAction } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, ReceivablesReport, AccountPayment, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem, ApprovalRequest, ApprovalStatus, ApprovalRule, ApprovalAction, Expense, ExpenseCategory, VatTreatment, PayablesReport, CashPosition, StockMovement, StockMovementKind, TillSession, TillSummary, CounterSale, CounterMethod } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -573,7 +573,74 @@ export const api = {
     request<ApprovalRule>('/admin/approval-rules', { method: 'POST', body: JSON.stringify(body) }),
   adminUpdateApprovalRule: (id: string, body: Partial<{ min_amount: number; required_count: number; approver_role: string; is_active: boolean; note: string }>) =>
     request<ApprovalRule>(`/admin/approval-rules/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  // Payables. Like receivables, every balance here is computed server-side and
+  // read fresh — an outstanding figure cached next to the invoice goes stale
+  // the moment a settlement lands.
+  adminListExpenses: (params?: { category?: string; opportunity_id?: string }) => {
+    const qs = new URLSearchParams(params as Record<string, string>).toString();
+    return request<{ items: Expense[] }>(`/admin/expenses${qs ? `?${qs}` : ''}`);
+  },
+  adminCreateExpense: (body: ExpenseInput) =>
+    request<Expense>('/admin/expenses', { method: 'POST', body: JSON.stringify(body) }),
+  adminUpdateExpense: (id: string, body: ExpenseInput) =>
+    request<Expense>(`/admin/expenses/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  adminDeleteExpense: (id: string) =>
+    request<void>(`/admin/expenses/${id}`, { method: 'DELETE' }),
+  adminSettleExpense: (id: string, body: { amount: number; method: string; reference?: string; paid_at?: string; note?: string }) =>
+    request<Expense>(`/admin/expenses/${id}/settlements`, { method: 'POST', body: JSON.stringify(body) }),
+  adminPayables: () => request<PayablesReport>('/admin/payables'),
+  adminPosition: () => request<CashPosition>('/admin/position'),
+  exportPayablesCSV: () => downloadBlob('/admin/payables/export', 'payables.csv'),
+
+  // Stock ledger. Quantity on hand is the sum of these rows, so `on_hand`
+  // comes back with the list rather than being totalled in the browser.
+  adminStockMovements: (productId: string) =>
+    request<{ items: StockMovement[]; on_hand: number }>(`/admin/products/${productId}/stock-movements`),
+  adminCreateStockMovement: (productId: string, body: { kind: StockMovementKind; quantity: number; reason?: string; unit_cost?: number; occurred_at?: string }) =>
+    request<{ movement: StockMovement; on_hand: number }>(`/admin/products/${productId}/stock-movements`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // Counter sales and the shift that contains them.
+  adminListTillSessions: () => request<{ items: TillSession[] }>('/admin/till-sessions'),
+  adminOpenTill: (body: { opening_float: number; note?: string }) =>
+    request<TillSession>('/admin/till-sessions', { method: 'POST', body: JSON.stringify(body) }),
+  adminTillSummary: (id: string) => request<TillSummary>(`/admin/till-sessions/${id}`),
+  adminCloseTill: (id: string, body: { counted_cash: number; note?: string }) =>
+    request<TillSummary>(`/admin/till-sessions/${id}/close`, { method: 'PATCH', body: JSON.stringify(body) }),
+  adminListCounterSales: (tillSessionId?: string) =>
+    request<{ items: CounterSale[] }>(`/admin/counter-sales${tillSessionId ? `?till_session_id=${tillSessionId}` : ''}`),
+  adminCreateCounterSale: (body: CounterSaleInput) =>
+    request<CounterSale>('/admin/counter-sales', { method: 'POST', body: JSON.stringify(body) }),
 };
+
+/** The writable shape of an expense — the computed figures are read-only. */
+export interface ExpenseInput {
+  supplier: string;
+  supplier_tpin?: string;
+  category: ExpenseCategory;
+  reference?: string;
+  smart_invoice_ref?: string;
+  net_amount: number;
+  vat_amount: number;
+  vat_treatment: VatTreatment;
+  incurred_at?: string;
+  due_date?: string | null;
+  opportunity_id?: string | null;
+  notes?: string;
+}
+
+export interface CounterSaleInput {
+  till_session_id?: string;
+  customer_name?: string;
+  customer_tpin?: string;
+  apply_vat: boolean;
+  payment_method: CounterMethod;
+  amount_tendered: number;
+  reference?: string;
+  smart_invoice_ref?: string;
+  note?: string;
+  lines: { product_id: string | null; description: string; quantity: number; unit_price: number }[];
+}
 
 // Client-side guard mirroring the backend's 15 MB limit on submission uploads.
 export const MAX_SUBMISSION_FILE_SIZE = 15 * 1024 * 1024;

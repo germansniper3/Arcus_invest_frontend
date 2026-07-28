@@ -6,6 +6,163 @@ export type PermissionResource =
   | 'audit' | 'email' | 'metrics' | 'roles' | 'gallery' | 'notifications'
   | 'approvals' | 'expenses' | 'counter_sales';
 
+// --- Money out (payables) --------------------------------------------------
+
+/**
+ * How a supplier invoice is treated for VAT.
+ *
+ * Only `standard` can ever produce reclaimable input VAT, and even then only
+ * against a Smart Invoice reference — see Expense.vat_recoverable, which the
+ * server computes so this rule is never reimplemented here.
+ */
+export type VatTreatment = 'standard' | 'zero_rated' | 'exempt' | 'none';
+
+export type ExpenseCategory =
+  | 'purchases' | 'salaries' | 'rent' | 'utilities' | 'transport'
+  | 'repairs' | 'professional' | 'bank_charges' | 'marketing'
+  | 'insurance' | 'statutory' | 'equipment' | 'other';
+
+export interface ExpenseSettlement {
+  id: string;
+  expense_id: string;
+  amount: number;
+  method: string;
+  reference: string;
+  paid_at: string;
+  note: string;
+  recorded_by: string;
+}
+
+export interface Expense {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  supplier: string;
+  supplier_tpin: string;
+  category: ExpenseCategory;
+  reference: string;
+  smart_invoice_ref: string;
+  net_amount: number;
+  vat_amount: number;
+  vat_treatment: VatTreatment;
+  /** All of these are computed server-side and must never be recalculated here. */
+  gross: number;
+  reclaimable_vat: number;
+  vat_recoverable: boolean;
+  settled: number;
+  outstanding: number;
+  incurred_at: string;
+  due_date: string | null;
+  opportunity_id: string | null;
+  notes: string;
+  recorded_by: string;
+  settlements: ExpenseSettlement[];
+}
+
+export interface PayableRow {
+  expense_id: string;
+  supplier: string;
+  category: string;
+  reference: string;
+  incurred_at: string;
+  due_date: string | null;
+  gross: number;
+  settled: number;
+  outstanding: number;
+  bucket: string;
+  days_overdue: number;
+  vat_treatment: VatTreatment;
+}
+
+export interface PayablesReport {
+  rows: PayableRow[];
+  buckets: Record<string, number>;
+  total_outstanding: number;
+}
+
+export interface CashPosition {
+  owed_to_us: number;
+  owed_by_us: number;
+  net: number;
+  spend_by_category: Record<string, number>;
+  recoverable_input_vat: number;
+  irrecoverable_input_vat: number;
+}
+
+// --- Stock ledger ----------------------------------------------------------
+
+export type StockMovementKind =
+  | 'opening' | 'receipt' | 'sale' | 'return' | 'adjustment' | 'write_off';
+
+export interface StockMovement {
+  id: string;
+  product_id: string;
+  kind: StockMovementKind;
+  /** Signed: negative takes stock out. */
+  quantity: number;
+  reason: string;
+  unit_cost: number;
+  opportunity_id: string | null;
+  expense_id: string | null;
+  counter_sale_id: string | null;
+  occurred_at: string;
+  actor_name: string;
+}
+
+// --- Counter sales ---------------------------------------------------------
+
+/** Credit is deliberately absent: a customer wanting terms is a deal. */
+export type CounterMethod = 'cash' | 'mobile_money' | 'card' | 'bank_transfer';
+
+export interface TillSession {
+  id: string;
+  status: 'open' | 'closed';
+  opened_at: string;
+  opened_by: string;
+  opening_float: number;
+  closed_at: string | null;
+  closed_by: string;
+  counted_cash: number | null;
+  note: string;
+}
+
+export interface TillSummary {
+  session: TillSession;
+  takings: Record<string, number>;
+  expected_cash: number;
+  total_takings: number;
+  /** Present only once the drawer has been counted. */
+  variance?: number;
+}
+
+export interface CounterSaleLine {
+  id?: string;
+  product_id: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface CounterSale {
+  id: string;
+  created_at: string;
+  till_session_id: string;
+  customer_name: string;
+  customer_tpin: string;
+  apply_vat: boolean;
+  payment_method: CounterMethod;
+  amount_tendered: number;
+  reference: string;
+  smart_invoice_ref: string;
+  note: string;
+  sold_by: string;
+  lines: CounterSaleLine[];
+  subtotal: number;
+  vat: number;
+  total: number;
+  change: number;
+}
+
 export interface ResourcePermission {
   read: boolean;
   create: boolean;

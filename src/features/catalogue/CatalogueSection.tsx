@@ -6,6 +6,7 @@ import { useCan } from '../../lib/permissions';
 import type { Product } from '../../types';
 import { Modal } from '../../components/Modal';
 import { NumberField } from '../../components/NumberField';
+import { StockLedger } from './StockLedger';
 
 const EMPTY_PRODUCT = { id: '', name: '', description: '', price: 0, stock: 0, image_url: '', specs: '', is_published: true };
 
@@ -205,6 +206,8 @@ export function CatalogueSection({ active }: Props) {
                 </div>
               </article>
             )}
+
+            {selected && <StockLedger product={selected} onChanged={load} canWrite={can('products', 'update')} />}
           </section>
         </div>
       )}

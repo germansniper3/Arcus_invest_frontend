@@ -3,7 +3,8 @@ import {
   LogOut, RefreshCcw, UserPlus, FileText, Calendar,
   Send, CheckSquare, Plus, Edit2, Trash2,
   Mail, X, Clock, Settings, GraduationCap, CalendarClock, ThumbsUp, ThumbsDown,
-  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History, Sparkles, Users, Wallet, Image as ImageIcon, ShieldCheck
+  UploadCloud, Download, Target, Lock, CheckCircle2, Building2, ScrollText, History, Sparkles, Users, Wallet, Image as ImageIcon, ShieldCheck,
+  Banknote, Store
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, formatFileSize, isApprovalBlocked, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
@@ -17,9 +18,11 @@ import { NotificationBell } from '../components/NotificationBell';
 import { CatalogueSection } from '../features/catalogue/CatalogueSection';
 import { EventsSection } from '../features/events/EventsSection';
 import { IntakeSection } from '../features/intake/IntakeSection';
+import { PayablesSection } from '../features/payables/PayablesSection';
+import { CounterSection } from '../features/counter/CounterSection';
 import { SECTION_ACTION_SLOT_ID } from '../components/SectionAction';
 
-type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'receivables' | 'approvals' | 'audit' | 'users' | 'gallery';
+type Tab = 'overview' | 'enrollments' | 'students' | 'events' | 'products' | 'pipeline' | 'accounts' | 'contracts' | 'receivables' | 'payables' | 'counter' | 'approvals' | 'audit' | 'users' | 'gallery';
 
 // `consumed` is green rather than grey: it is the only status that means the
 // gated action actually happened, which is what someone scanning the list is
@@ -463,6 +466,10 @@ export function AdminPage() {
     products: 'products', users: 'users', audit: 'audit', gallery: 'gallery',
     // The debtor book follows payment access, matching the server's mapping.
     receivables: 'payments',
+    // Money out and walk-in selling are their own resources, so a counter
+    // operator can hold the till without the pipeline or the supplier ledger.
+    payables: 'expenses',
+    counter: 'counter_sales',
     approvals: 'approvals',
   };
   useEffect(() => {
@@ -1281,6 +1288,8 @@ export function AdminPage() {
             ['accounts', 'Accounts & VSI', Building2, can('accounts')],
             ['contracts', 'Contracts', ScrollText, can('contracts')],
             ['receivables', 'Receivables', Wallet, can('payments')],
+            ['payables', 'Payables', Banknote, can('expenses')],
+            ['counter', 'Counter', Store, can('counter_sales')],
             ['approvals', 'Approvals', ShieldCheck, can('approvals')],
             ['enrollments', 'Enrollments', UserPlus, can('enrollments')],
             ['students', 'Students Portal', GraduationCap, can('students')],
@@ -1331,6 +1340,8 @@ export function AdminPage() {
               {activeTab === 'accounts' && 'Accounts & Vertical Sales Index'}
               {activeTab === 'contracts' && 'Contract Repository'}
               {activeTab === 'receivables' && 'Receivables'}
+              {activeTab === 'payables' && 'Payables & Cash Position'}
+              {activeTab === 'counter' && 'Counter'}
               {activeTab === 'approvals' && 'Approvals'}
               {activeTab === 'enrollments' && 'Innovation Hub Intake'}
               {activeTab === 'students' && 'Student Capstone Milestones'}
@@ -1375,7 +1386,10 @@ export function AdminPage() {
             <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{ZMW(forecast?.won_value ?? 0)}</span><p style={{ margin: '4px 0 0' }}>Won Value</p></article>
             <article className="panel"><span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{Math.round(forecast?.win_rate ?? 0)}%</span><p style={{ margin: '4px 0 0' }}>Win Rate ({forecast?.won_count ?? 0}W / {forecast?.lost_count ?? 0}L)</p></article>
           </div>
-        ) : activeTab === 'accounts' || activeTab === 'contracts' || activeTab === 'audit' || activeTab === 'users' || activeTab === 'gallery' ? null : (
+        ) : activeTab === 'accounts' || activeTab === 'contracts' || activeTab === 'audit' || activeTab === 'users' || activeTab === 'gallery'
+          // The money and counter screens carry their own figures. Enrollment
+          // and student counts above a cash position are just noise.
+          || activeTab === 'payables' || activeTab === 'counter' ? null : (
           <div className="metric-row">
             <article><span>{metrics.enrollments}</span><p>Total Enrollments</p></article>
             <article><span>{metrics.students}</span><p>Active Students</p></article>
@@ -1543,6 +1557,12 @@ export function AdminPage() {
         {/* Enrollments Tab */}
         {/* Hub intake, the invite link and its modal; see features/intake. */}
         <IntakeSection active={activeTab === 'enrollments'} />
+
+        {/* The supplier ledger and the combined cash position. */}
+        <PayablesSection active={activeTab === 'payables'} />
+
+        {/* Walk-in selling. Not the deal pipeline — see models.CounterSale. */}
+        <CounterSection active={activeTab === 'counter'} />
 
         {/* Students Tab */}
         {activeTab === 'students' && (
