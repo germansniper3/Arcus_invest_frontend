@@ -8,7 +8,7 @@ import {
 import { toast } from 'sonner';
 import { api, formatFileSize, isApprovalBlocked, MAX_PRODUCT_IMAGE_SIZE, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory, DocumentVersion, DocumentAccessLog, ReceivablesReport, ApprovalRequest } from '../types';
+import type { Enrollment, QuoteRequest, User, Event, Reservation, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, ActivityType, OpportunityStage, OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem, Payment, PaymentMethod, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, ContractStatus, AuditLog, EmailStatus, PermissionResource, CustomRole, CustomRolePermission, GalleryItem, GalleryCategory, DocumentVersion, DocumentAccessLog, ReceivablesReport, ApprovalRequest, ApprovalRule, ApprovalAction } from '../types';
 import DocumentView, { type DocumentKind, VAT_RATE } from '../components/DocumentView';
 import { NumberField } from '../components/NumberField';
 import { Modal } from '../components/Modal';
@@ -24,6 +24,11 @@ const STATUS_ACCENT: Record<string, string> = {
   pending: '#c98745', approved: '#5f7c29', consumed: '#5f7c29',
   rejected: '#a00', cancelled: '#8a908a',
 };
+
+// Only super_admin may read the role list, but admin may configure thresholds.
+// These are the built-in roles granted approval decisions, so the picker still
+// works for an admin. The server validates the choice regardless.
+const APPROVER_ROLE_FALLBACK = ['super_admin', 'admin'];
 
 const ACTION_LABELS: Record<string, string> = {
   'deal.close_won': 'Close deal as Won',
@@ -286,6 +291,12 @@ export function AdminPage() {
   const [rejecting, setRejecting] = useState<ApprovalRequest | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [decidingId, setDecidingId] = useState<string | null>(null);
+  const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([]);
+  const [showRulesPanel, setShowRulesPanel] = useState(false);
+  const [showRuleModal, setShowRuleModal] = useState(false);
+  const [savingRule, setSavingRule] = useState(false);
+  const emptyRule = { action: 'deal.close_won' as ApprovalAction, min_amount: 0, required_count: 1, approver_role: 'super_admin', note: '' };
+  const [ruleForm, setRuleForm] = useState(emptyRule);
   const [savingContract, setSavingContract] = useState(false);
   const [downloadingContractId, setDownloadingContractId] = useState<string | null>(null);
   const NIL_UUID = '00000000-0000-0000-0000-000000000000';
@@ -354,6 +365,9 @@ export function AdminPage() {
       } else if (activeTab === 'receivables') {
         setReceivables(await api.adminReceivables());
       } else if (activeTab === 'approvals') {
+        // Roles populate the approver picker. Only super_admin may read them, so
+        // this is best-effort — APPROVER_ROLE_FALLBACK covers everyone else.
+        if (can('roles')) setRoles(await api.adminListRoles());
         await loadApprovals();
       }
     } catch (err: any) {
@@ -372,6 +386,45 @@ export function AdminPage() {
     setMyRequests(mine.items);
     setDecidedRequests([...approved.items, ...rejected.items]
       .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 25));
+
+    // Thresholds are a secondary panel, so they are fetched separately and
+    // allowed to fail. Inside the Promise.all above, one rejection discarded
+    // four successful responses and rendered the whole tab as empty — which
+    // reads as "there is nothing to approve", the most dangerous possible lie
+    // for this screen to tell.
+    try {
+      setApprovalRules((await api.adminApprovalRules()).items);
+    } catch {
+      setApprovalRules([]);
+    }
+  }
+
+  async function saveRule(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingRule(true);
+    try {
+      await api.adminCreateApprovalRule(ruleForm);
+      toast.success('Threshold added');
+      setShowRuleModal(false);
+      setRuleForm(emptyRule);
+      await loadApprovals();
+    } catch (err: any) {
+      // The server explains exactly why a rule is unsatisfiable (unknown role,
+      // a role that cannot decide); that is far more useful than a generic
+      // "could not save", so it is shown verbatim.
+      toast.error(err.message || 'Could not save the threshold');
+    } finally {
+      setSavingRule(false);
+    }
+  }
+
+  async function toggleRule(rule: ApprovalRule) {
+    try {
+      await api.adminUpdateApprovalRule(rule.id, { is_active: !rule.is_active });
+      await loadApprovals();
+    } catch (err: any) {
+      toast.error(err.message || 'Could not update the threshold');
+    }
   }
 
   async function approveRequest(req: ApprovalRequest) {
@@ -2626,6 +2679,50 @@ export function AdminPage() {
               High-consequence actions held for a second pair of eyes. Approving does not perform the action — it unblocks whoever raised it, who then retries it themselves.
             </p>
 
+            <div style={{ marginBottom: '22px', background: '#fff', border: '1px solid #dfe1da', borderRadius: '8px' }}>
+              <button
+                onClick={() => setShowRulesPanel((v) => !v)}
+                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', padding: '12px 14px', fontSize: '13px', fontWeight: 700, color: '#111512', cursor: 'pointer', textAlign: 'left' }}
+              >
+                <span>Thresholds ({approvalRules.filter((r) => r.is_active).length} active)</span>
+                <span style={{ color: '#8a908a', fontWeight: 400 }}>{showRulesPanel ? 'Hide' : 'Show'}</span>
+              </button>
+              {showRulesPanel && (
+                <div style={{ borderTop: '1px solid #eef0ea', padding: '12px 14px' }}>
+                  <p style={{ fontSize: '12px', color: '#5a625d', marginTop: 0, marginBottom: '12px' }}>
+                    An action is gated at or above its threshold. Where several apply, the highest one wins. With no threshold configured, an action is not gated at all.
+                  </p>
+                  {approvalRules.length === 0 ? (
+                    <p className="empty" style={{ fontSize: '13px' }}>No thresholds configured — nothing is being gated.</p>
+                  ) : (
+                    <div style={{ display: 'grid', gap: '6px', marginBottom: '12px' }}>
+                      {approvalRules.map((r) => (
+                        <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap', padding: '8px 10px', background: r.is_active ? '#f7f8f3' : '#fbfbf9', border: '1px solid #eef0ea', borderRadius: '6px', opacity: r.is_active ? 1 : 0.6 }}>
+                          <div style={{ fontSize: '13px', color: '#111512' }}>
+                            <strong>{ACTION_LABELS[r.action] ?? r.action}</strong>
+                            <span style={{ color: '#5a625d' }}>
+                              {' '}at or above {ZMW(r.min_amount)} — {r.required_count} approval{r.required_count > 1 ? 's' : ''} from {r.approver_role}
+                            </span>
+                            {r.note && <span style={{ color: '#8a908a' }}> · {r.note}</span>}
+                          </div>
+                          {can('approvals', 'update') && (
+                            <button onClick={() => toggleRule(r)} style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '5px', background: '#fff', border: '1px solid #dfe1da', color: '#111512', cursor: 'pointer', flexShrink: 0 }}>
+                              {r.is_active ? 'Disable' : 'Enable'}
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {can('approvals', 'create') && (
+                    <button onClick={() => { setRuleForm(emptyRule); setShowRuleModal(true); }} style={{ padding: '7px 13px', fontSize: '13px', borderRadius: '6px', background: '#eef0ea', border: '1px solid #dfe1da', color: '#111512', cursor: 'pointer' }}>
+                      Add threshold
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
             {([
               ['Awaiting your decision', awaitingMe, 'decide'],
               ['Your requests', myRequests, 'mine'],
@@ -3915,6 +4012,59 @@ export function AdminPage() {
         onClose={() => setSigningContract(null)}
         onSigned={() => { void api.adminListContracts().then(setContracts).catch(() => { /* the toast already reported it */ }); }}
       />
+
+      <Modal
+        open={showRuleModal}
+        onClose={() => setShowRuleModal(false)}
+        title="Add approval threshold"
+        width="min(560px, 100%)"
+        footer={
+          <button type="submit" form="rule-form" disabled={savingRule} className="primary" style={{ padding: '9px 16px', fontSize: '14px', borderRadius: '6px', cursor: 'pointer' }}>
+            {savingRule ? 'Saving…' : 'Add threshold'}
+          </button>
+        }
+      >
+        <form id="rule-form" onSubmit={saveRule} style={{ display: 'grid', gap: '14px' }}>
+          <div style={{ display: 'grid', gap: '5px' }}>
+            <label style={{ fontSize: '12px', color: '#5a625d' }}>Action</label>
+            <select value={ruleForm.action} onChange={(e) => setRuleForm({ ...ruleForm, action: e.target.value as ApprovalAction })}
+              style={{ padding: '9px 11px', fontSize: '14px', color: '#111512', background: '#f7f8f3', border: '1px solid #d6d8d0', borderRadius: '6px' }}>
+              {Object.entries(ACTION_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gap: '5px' }}>
+              <label style={{ fontSize: '12px', color: '#5a625d' }}>Applies at or above (ZMW)</label>
+              {/* Blank renders for 0, which reads correctly as "no minimum". */}
+              <NumberField min="0" value={ruleForm.min_amount} onChange={(min_amount) => setRuleForm({ ...ruleForm, min_amount })} />
+            </div>
+            <div style={{ display: 'grid', gap: '5px' }}>
+              <label style={{ fontSize: '12px', color: '#5a625d' }}>Approvals required</label>
+              <NumberField min="1" value={ruleForm.required_count} onChange={(required_count) => setRuleForm({ ...ruleForm, required_count })} />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gap: '5px' }}>
+            <label style={{ fontSize: '12px', color: '#5a625d' }}>Approver role</label>
+            <select value={ruleForm.approver_role} onChange={(e) => setRuleForm({ ...ruleForm, approver_role: e.target.value })}
+              style={{ padding: '9px 11px', fontSize: '14px', color: '#111512', background: '#f7f8f3', border: '1px solid #d6d8d0', borderRadius: '6px' }}>
+              {roles.length > 0
+                ? roles.map((r) => <option key={r.id} value={r.name}>{r.label}</option>)
+                : APPROVER_ROLE_FALLBACK.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <span style={{ fontSize: '11px', color: '#8a908a' }}>
+              The role must be able to decide approvals, or the action would be blocked with nobody able to release it. The server refuses a rule that cannot be satisfied.
+            </span>
+          </div>
+          <div style={{ display: 'grid', gap: '5px' }}>
+            <label style={{ fontSize: '12px', color: '#5a625d' }}>Note (optional)</label>
+            <input value={ruleForm.note} onChange={(e) => setRuleForm({ ...ruleForm, note: e.target.value })}
+              placeholder="e.g. Board policy, revised March 2026"
+              style={{ padding: '9px 11px', fontSize: '14px', color: '#111512', background: '#f7f8f3', border: '1px solid #d6d8d0', borderRadius: '6px' }} />
+          </div>
+        </form>
+      </Modal>
 
       {/* Driven by the `open` prop rather than conditionally rendered, so focus
           returns to where it came from when the dialog closes. */}

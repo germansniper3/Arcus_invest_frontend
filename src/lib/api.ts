@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, ReceivablesReport, AccountPayment, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem, ApprovalRequest, ApprovalStatus } from '../types';
+import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, ReceivablesReport, AccountPayment, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem, ApprovalRequest, ApprovalStatus, ApprovalRule, ApprovalAction } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -377,6 +377,12 @@ export const api = {
     request<ApprovalRequest>(`/admin/approvals/${id}/resubmit`, {
       method: 'POST', body: JSON.stringify({ summary: summary ?? '' })
     }),
+
+  adminApprovalRules: () => request<{ items: ApprovalRule[] }>('/admin/approval-rules'),
+  adminCreateApprovalRule: (body: { action: ApprovalAction; min_amount: number; required_count: number; approver_role: string; note?: string }) =>
+    request<ApprovalRule>('/admin/approval-rules', { method: 'POST', body: JSON.stringify(body) }),
+  adminUpdateApprovalRule: (id: string, body: Partial<{ min_amount: number; required_count: number; approver_role: string; is_active: boolean; note: string }>) =>
+    request<ApprovalRule>(`/admin/approval-rules/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 };
 
 // Client-side guard mirroring the backend's 15 MB limit on submission uploads.
