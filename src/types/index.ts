@@ -3,7 +3,8 @@ export type Role = 'super_admin' | 'admin' | 'admissions' | 'student' | string;
 export type PermissionResource =
   | 'opportunities' | 'accounts' | 'contracts' | 'payments' | 'quotes'
   | 'enrollments' | 'students' | 'events' | 'products' | 'users'
-  | 'audit' | 'email' | 'metrics' | 'roles' | 'gallery' | 'notifications';
+  | 'audit' | 'email' | 'metrics' | 'roles' | 'gallery' | 'notifications'
+  | 'approvals';
 
 export interface ResourcePermission {
   read: boolean;

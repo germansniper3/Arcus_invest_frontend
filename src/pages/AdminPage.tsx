@@ -227,7 +227,7 @@ export function AdminPage() {
   const ALL_RESOURCES: PermissionResource[] = [
     'opportunities', 'accounts', 'contracts', 'payments', 'quotes',
     'enrollments', 'students', 'events', 'products', 'users',
-    'audit', 'email', 'metrics', 'roles'
+    'audit', 'email', 'metrics', 'roles', 'approvals'
   ];
   const [roles, setRoles] = useState<CustomRole[]>([]);
   const [showRoleModal, setShowRoleModal] = useState(false);
