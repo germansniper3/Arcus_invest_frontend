@@ -182,12 +182,45 @@ export const api = {
   // Signing in is idempotent, so it opts into retry despite being a POST —
   // otherwise the very first action after the container sleeps is the one that
   // fails, which is exactly when a user concludes the app is down.
+  //
+  // credentials: 'include' is what lets the refresh cookie cross from the API
+  // origin to this one. Without it the Set-Cookie is silently dropped and every
+  // session ends when its 30-minute access token does.
   login: (email: string, password: string) =>
     request<{ token: string; user: User }>('/auth/login', {
       method: 'POST',
+      credentials: 'include',
       body: JSON.stringify({ email, password })
     }, { retry: true }),
   me: () => request<User>('/auth/me'),
+
+  /** Exchanges the refresh cookie for a new access token, rotating the cookie. */
+  refresh: () =>
+    request<{ token: string; user: User }>('/auth/refresh', {
+      method: 'POST',
+      credentials: 'include'
+    }),
+  logout: () =>
+    request<{ message: string }>('/auth/logout', {
+      method: 'POST',
+      credentials: 'include'
+    }),
+  logoutEverywhere: () =>
+    request<{ message: string }>('/auth/logout-everywhere', {
+      method: 'POST',
+      credentials: 'include'
+    }),
+  forgotPassword: (email: string) =>
+    request<{ message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    }, { retry: true }),
+  resetPassword: (token: string, password: string) =>
+    request<{ message: string }>('/auth/reset-password', {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ token, password })
+    }),
 
   // Public
   createEnrollment: (body: Partial<Enrollment>) =>

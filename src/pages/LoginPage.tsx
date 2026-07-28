@@ -83,7 +83,7 @@ export function LoginPage() {
           <button className="primary" disabled={submitting}>{submitting ? 'Signing in…' : 'Sign in'}</button>
           <div className="auth-meta">
             <Link to="/" className="auth-back"><ArrowLeft size={14} /> Back to site</Link>
-            <span>Need access? Contact an admin.</span>
+            <Link to="/forgot-password" className="auth-back">Forgot password?</Link>
           </div>
         </form>
       </section>

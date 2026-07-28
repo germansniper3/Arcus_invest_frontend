@@ -72,6 +72,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return response.user;
     },
     logout: () => {
+      // Tell the server first so the refresh family is revoked. Clearing
+      // localStorage alone left the session alive — a copied token kept working
+      // until it expired. Local state is cleared regardless of the outcome:
+      // failing to reach the server must not trap someone in a session they
+      // asked to leave.
+      void api.logout().catch(() => { /* revoked on the next refresh attempt anyway */ });
       clearToken();
       setUser(null);
     },
