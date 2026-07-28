@@ -108,9 +108,67 @@ async function fetchWithRetry(url: string, init: RequestInit, retryable: boolean
   throw lastError;
 }
 
+// Subscribers notified when a session cannot be renewed and the user has to
+// re-authenticate.
+type SessionListener = () => void;
+const sessionLostListeners = new Set<SessionListener>();
+
+export function onSessionLost(fn: SessionListener): () => void {
+  sessionLostListeners.add(fn);
+  return () => sessionLostListeners.delete(fn);
+}
+
+function notifySessionLost() {
+  sessionLostListeners.forEach((fn) => fn());
+}
+
+/**
+ * A single in-flight refresh shared by every caller.
+ *
+ * Without this, a screen that fires six requests in parallel would see six 401s
+ * and start six refreshes. Rotation makes that actively harmful: the first
+ * consumes the cookie, and the rest present a token the server has already
+ * spent — which is indistinguishable from a stolen-token replay, so the whole
+ * family gets revoked and the user is signed out for loading a page.
+ */
+let refreshInFlight: Promise<string | null> | null = null;
+
+function refreshAccessToken(): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+        if (!res.ok) return null;
+        const body = await res.json().catch(() => ({}));
+        if (typeof body.token === 'string') {
+          setToken(body.token);
+          return body.token as string;
+        }
+        return null;
+      } catch {
+        // A network failure here is not a dead session — say nothing and let
+        // the caller surface the original error.
+        return null;
+      }
+    })().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+// Endpoints that must never trigger a refresh: refreshing in response to their
+// 401 would either recurse or make no sense.
+const NO_REFRESH_PATHS = ['/auth/refresh', '/auth/login', '/auth/logout', '/auth/forgot-password', '/auth/reset-password'];
+
 interface RequestOptions {
   /** Force retry-on-network-failure on or off, overriding the method default. */
   retry?: boolean;
+  /** Internal: set on the single replay after a successful token refresh. */
+  replayed?: boolean;
 }
 
 async function request<T>(path: string, options: RequestInit = {}, opts: RequestOptions = {}): Promise<T> {
@@ -123,6 +181,24 @@ async function request<T>(path: string, options: RequestInit = {}, opts: Request
       ...options.headers
     }
   }, mayRetry(options.method, opts.retry));
+
+  // An expired access token is the expected steady state now that they last 30
+  // minutes. Renew and replay once, so the caller never sees it.
+  if (
+    response.status === 401 &&
+    !opts.replayed &&
+    token &&
+    !NO_REFRESH_PATHS.some((p) => path.startsWith(p))
+  ) {
+    const renewed = await refreshAccessToken();
+    if (renewed) {
+      return request<T>(path, options, { ...opts, replayed: true });
+    }
+    // The refresh token is gone too. Everything that can be done automatically
+    // has been; the user has to prove who they are.
+    notifySessionLost();
+  }
+
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new ApiError(response.status, payload);

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { api, ApiError, clearToken, getToken, onWakeStateChange, setToken } from './api';
+import { api, ApiError, clearToken, getToken, onSessionLost, onWakeStateChange, setToken } from './api';
+import { SessionExpiredDialog } from '../components/SessionExpiredDialog';
 import type { User } from '../types';
 
 interface AuthState {
@@ -27,10 +28,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(Boolean(getToken()));
   const [wakingUp, setWakingUp] = useState(false);
   const [unreachable, setUnreachable] = useState(false);
+  // Deliberately separate from `user`. Clearing `user` would unmount the admin
+  // tree and destroy the very drafts the dialog exists to protect, so an expired
+  // session is an overlay on top of a still-signed-in UI.
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   // Mirrors the api client's retry state into React. Subscribed once for the
   // app's lifetime so any request, from any screen, can raise the indicator.
   useEffect(() => onWakeStateChange(setWakingUp), []);
+  useEffect(() => onSessionLost(() => setSessionExpired(true)), []);
 
   const restoreSession = useCallback(() => {
     if (!getToken()) return;
@@ -69,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await api.login(email, password);
       setToken(response.token);
       setUser(response.user);
+      setSessionExpired(false);
       return response.user;
     },
     logout: () => {
@@ -99,7 +106,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }), [user, loading, wakingUp, unreachable, restoreSession]);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      {/* Rendered as a sibling of the app rather than in place of it: the tree
+          below must stay mounted while the user signs back in. */}
+      <SessionExpiredDialog
+        open={sessionExpired && user !== null}
+        email={user?.email ?? ''}
+        onReauthenticate={async (password) => {
+          const response = await api.login(user?.email ?? '', password);
+          setToken(response.token);
+          setUser(response.user);
+          setSessionExpired(false);
+        }}
+        onSignOut={() => {
+          setSessionExpired(false);
+          value.logout();
+        }}
+      />
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
