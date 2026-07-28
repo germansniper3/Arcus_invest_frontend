@@ -9,6 +9,17 @@
   --muted: #b8b7ad;
   --accent: #9ad35b;
   --copper: #c98745;
+
+  /* Motion. The CSS built-in easings are too weak to read as intentional, so
+     these are the stronger custom variants. Never ease-in on UI: it delays the
+     first few frames, which is exactly when the user is watching. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* Durations. UI stays under 300ms or it starts to feel like waiting. */
+  --dur-press: 140ms;
+  --dur-fast: 180ms;
+  --dur-modal: 240ms;
 }
 
 * { box-sizing: border-box; }
@@ -17,6 +28,42 @@ body { margin: 0; min-width: 320px; overflow-x: clip; }
 a { color: inherit; text-decoration: none; }
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
+
+/* Press feedback. Without this every button in the product is dead on press —
+   nothing acknowledges the click, so the interface never feels like it is
+   listening. Only transform is named: `all` would drag layout properties onto
+   the compositor path and cost a reflow per press. */
+button, [role="button"], .tier, summary {
+  transition: transform var(--dur-press) var(--ease-out);
+}
+button:active, [role="button"]:active, .tier:active, summary:active {
+  transform: scale(0.97);
+}
+/* A disabled control did not hear the press, so it must not claim it did. */
+button:disabled:active, button[aria-disabled="true"]:active {
+  transform: none;
+}
+
+/* Touch devices fire :hover on tap and then keep it until the next tap
+   elsewhere, so a hovered look sticks to whatever was touched last. Gate every
+   hover treatment on a real pointer. */
+@media (hover: hover) and (pointer: fine) {
+  .primary, .secondary, .text-link, .rail-nav button, .enroll-clear, .auth-back, .row button {
+    transition: transform var(--dur-press) var(--ease-out),
+                background-color var(--dur-fast) ease,
+                border-color var(--dur-fast) ease,
+                color var(--dur-fast) ease;
+  }
+}
+
+/* Reduced motion means fewer and gentler animations, not none: opacity and
+   colour still carry meaning, so only movement is dropped. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  button:active, [role="button"]:active, .tier:active, summary:active {
+    transform: none;
+  }
+}
 
 .nav {
   position: fixed;
