@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Printer } from 'lucide-react';
 import { ARCUS_ISSUER, VAT_RATE } from '../../components/DocumentView';
@@ -32,6 +33,19 @@ const fmtDateTime = (iso: string) =>
   });
 
 export function CounterReceipt({ sale, onClose }: { sale: CounterSale; onClose: () => void }) {
+  // Escape closes the receipt and must not reach any dialog behind it.
+  // Capture-phase on window so it runs before Radix's document listener — see
+  // the fuller note in DocumentView.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+
   const docNumber = `RCP-${new Date(sale.created_at).getFullYear()}-${shortId(sale.id)}`;
 
   const th: React.CSSProperties = {

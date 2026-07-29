@@ -43,6 +43,16 @@ interface ModalProps {
   children: ReactNode;
 }
 
+/**
+ * Whether an event target sits inside a printed-document overlay.
+ *
+ * Guards against a non-Element target (Radix passes the original event target,
+ * which can be the document itself on some interactions).
+ */
+function isInsideDocumentOverlay(target: EventTarget | null): boolean {
+  return target instanceof Element && !!target.closest('.doc-overlay');
+}
+
 export function Modal({
   open,
   onClose,
@@ -78,7 +88,25 @@ export function Modal({
             // dismissed by a stray click on the backdrop. Escape still closes:
             // it resolves to Cancel, which is the safe direction, and screen
             // reader users expect a dialog to yield to it.
-            onInteractOutside={destructive ? (e) => e.preventDefault() : undefined}
+            //
+            // The document overlay is the other case. It renders above this
+            // dialog (z-index 200 against 100) but portals to <body>, so Radix
+            // counts every click inside it — Print, Close, selecting text — as
+            // an interaction *outside* the dialog and dismisses the form
+            // underneath. A user who opened an invoice from a half-filled deal
+            // lost everything they had typed. It is on top of the dialog, not
+            // outside it, and the guard lives here rather than at each call site
+            // so a modal added later cannot forget it.
+            onInteractOutside={(e) => {
+              if (isInsideDocumentOverlay(e.target)) { e.preventDefault(); return; }
+              if (destructive) e.preventDefault();
+            }}
+            // Same reasoning for Escape: while a document is open, Escape
+            // belongs to the document — it closes that and leaves the form
+            // behind it intact. DocumentView handles its own.
+            onEscapeKeyDown={(e) => {
+              if (document.querySelector('.doc-overlay')) e.preventDefault();
+            }}
             // Fires before focus moves inside, so this is still the control the
             // user opened the dialog from.
             onOpenAutoFocus={() => { restoreFocusTo.current = document.activeElement as HTMLElement | null; }}
@@ -103,10 +131,7 @@ export function Modal({
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <Dialog.Close asChild>
-                <button
-                  type="button"
-                  style={{ background: 'var(--ws-canvas)', color: 'var(--ws-fg)', border: 0, borderRadius: '4px', minHeight: '44px', padding: '0 16px', fontSize: 'var(--fs-300)', cursor: 'pointer' }}
-                >
+                <button type="button" className="btn-ghost">
                   {cancelLabel}
                 </button>
               </Dialog.Close>

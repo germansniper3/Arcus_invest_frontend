@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Printer } from 'lucide-react';
 import type { Opportunity, Payment, PurchaseOrder } from '../types';
@@ -71,6 +72,31 @@ interface DocumentViewProps {
 export default function DocumentView({ kind, opportunity, purchaseOrder, payments = [], ownerName, applyVat, onToggleVat, receiptPayment, onClose }: DocumentViewProps) {
   const meta = KIND_META[kind];
   const isPO = kind === 'purchase_order';
+
+  // Escape closes the document, and must not reach the dialog behind it.
+  //
+  // A document is usually opened from inside the deal modal. Left alone, Escape
+  // dismissed that modal and took everything typed into it — the document was
+  // merely the thing on top when the key was pressed.
+  //
+  // The listener is capture-phase on `window` deliberately. Radix's dismissable
+  // layer listens on `document`, and the capture path runs window before
+  // document, so stopping propagation here means Radix never sees the key at
+  // all. Checking "is a document open?" from inside Radix's own handler does
+  // not work: a keydown is a discrete event, React flushes it synchronously, so
+  // the overlay has already left the DOM by the time that check runs.
+  //
+  // Registered before the early return below — a hook cannot sit after a
+  // conditional return.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
 
   // A kind with nothing to render is a caller bug, not a document. Bail rather
   // than printing a letterhead over empty fields.

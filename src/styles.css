@@ -456,6 +456,32 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
            max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
 .modal-card { background: #fff; border: 1px solid #d8dbd1; color: #111512; border-radius: 8px; padding: clamp(20px, 4vw, 32px); width: min(500px, 100%); max-height: 92vh; overflow-y: auto; display: grid; gap: 16px; }
+
+/* The workspace's secondary button.
+   `.secondary` further up belongs to the dark marketing site — white text on a
+   translucent white fill, which is invisible on a white modal card. So the back
+   office never had one, and every call site improvised: that is why Cancel sat
+   there with no border and a 4px radius next to a primary with 8px, reading as
+   an unstyled slab rather than a button. Matches `.primary`'s box exactly, so
+   the two sit level in a footer row. */
+.btn-ghost {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--ws-panel);
+  color: var(--ws-fg);
+  border: 1px solid var(--ws-border);
+  border-radius: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  font-size: var(--fs-300);
+  font-weight: 600;
+  /* Named properties only — `all` would put layout on the compositor path. */
+  transition: background-color var(--dur-press) var(--ease-out),
+              border-color var(--dur-press) var(--ease-out),
+              transform var(--dur-press) var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-ghost:hover { background: var(--ws-canvas); border-color: var(--ws-fg-muted); }
+}
 /* 100svh, not 100vh: on iOS 100vh is the *large* viewport height, so the pane
    runs under the Safari toolbar and adds a toolbar's worth of phantom scroll to
    every section. Everything else was already moved; this was the last one.
@@ -690,7 +716,14 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 .enroll-clear:hover { color: #fff; border-color: #6b7166; }
 
 /* --- Printable documents (quotations / invoices / receipts) --- */
-.doc-overlay { position: fixed; inset: 0; z-index: 200; background: #33362f; overflow-y: auto; padding: 0 0 max(60px, env(safe-area-inset-bottom)); }
+/* pointer-events is not decoration here. A document is routinely opened from
+   inside the deal modal, and Radix sets `pointer-events: none` on <body> while a
+   modal dialog is open so that only its own content is clickable. The document
+   overlay inherits that and goes completely dead — Print and Close both stop
+   responding, leaving Escape as the only way out, which dismisses the form
+   underneath and loses whatever was typed into it. It sits above the dialog
+   (z-index 200 against 100), so it must take clicks. */
+.doc-overlay { position: fixed; inset: 0; z-index: 200; background: #33362f; overflow-y: auto; pointer-events: auto; padding: 0 0 max(60px, env(safe-area-inset-bottom)); }
 /* The toolbar is sticky at the top of a full-screen overlay, which is exactly
    where the Dynamic Island is. */
 .doc-toolbar {

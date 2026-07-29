@@ -355,7 +355,7 @@ export function PurchasingSection({ active }: Props) {
     <div>
       {can('purchase_orders', 'create') && (
         <SectionAction>
-          <button className="btn-primary" onClick={openCreate}>
+          <button className="primary" onClick={openCreate}>
             <Plus size={15} /> New Purchase Order
           </button>
         </SectionAction>
@@ -587,7 +587,7 @@ export function PurchasingSection({ active }: Props) {
                 <span style={{ color: 'var(--text-muted)' }}> · {zmw(formSubtotal * form.exchange_rate)}</span>
               )}
             </div>
-            <button className="btn-primary" disabled={saving}>
+            <button className="primary" disabled={saving}>
               {saving ? 'Saving…' : editingId ? 'Save changes' : 'Create draft'}
             </button>
           </div>
@@ -748,7 +748,7 @@ export function PurchasingSection({ active }: Props) {
                   </span>
                 )}
               </div>
-              <button className="btn-primary" disabled={posting}>
+              <button className="primary" disabled={posting}>
                 {posting ? 'Recording…' : 'Receive into stock'}
               </button>
             </div>
