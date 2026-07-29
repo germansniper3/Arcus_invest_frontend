@@ -14,8 +14,8 @@ import type { PermissionResource } from '../types';
  */
 export const ADMIN_TABS = [
   'overview', 'pipeline', 'accounts', 'contracts', 'receivables', 'payables',
-  'counter', 'approvals', 'enrollments', 'students', 'events', 'products',
-  'gallery', 'users', 'audit',
+  'purchasing', 'counter', 'approvals', 'enrollments', 'students', 'events',
+  'products', 'gallery', 'users', 'audit',
 ] as const;
 
 export type Tab = (typeof ADMIN_TABS)[number];
@@ -46,6 +46,10 @@ const RESOURCE_ROWS: Record<PermissionResource, true> = {
   // and opportunities so a counter operator can be given the till without the
   // pipeline, and a bookkeeper the supplier ledger without either.
   expenses: true, counter_sales: true,
+  // The buy side. Separate from `expenses` because committing to an order and
+  // booking the invoice for it are different acts by different people — a
+  // storekeeper receiving deliveries has no business in the supplier ledger.
+  purchase_orders: true,
   // The two that were missing. `gallery` gates a section that is already in the
   // rail; `notifications` gates the bell, which AdminPage checks with
   // can('notifications') — so before this a custom role could never see it.
@@ -77,6 +81,7 @@ export const TAB_RESOURCE: Partial<Record<Tab, PermissionResource>> = {
   // Money out and walk-in selling are their own resources, so a counter
   // operator can hold the till without the pipeline or the supplier ledger.
   payables: 'expenses',
+  purchasing: 'purchase_orders',
   counter: 'counter_sales',
   approvals: 'approvals',
 };

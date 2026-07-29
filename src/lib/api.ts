@@ -1,4 +1,4 @@
-import type { ChatMessage, Enrollment, Event, Reservation, OnboardingInvitation, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, StudentProfile, CapstoneMilestone, CapstoneComment, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, ReceivablesReport, AccountPayment, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem, ApprovalRequest, ApprovalStatus, ApprovalRule, ApprovalAction, Expense, ExpenseCategory, VatTreatment, PayablesReport, CashPosition, StockMovement, StockMovementKind, TillSession, TillSummary, CounterSale, CounterMethod } from '../types';
+import type { ChatMessage, Enrollment, Event, Reservation, OnboardingInvitation, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, StudentProfile, CapstoneMilestone, CapstoneComment, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, ReceivablesReport, AccountPayment, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem, ApprovalRequest, ApprovalStatus, ApprovalRule, ApprovalAction, Expense, ExpenseCategory, VatTreatment, PayablesReport, CashPosition, StockMovement, StockMovementKind, TillSession, TillSummary, CounterSale, CounterMethod, PurchaseOrder, PurchaseOrderInput, GoodsReceipt, GoodsReceiptInput, LandedCostComponentInput, DealCosting } from '../types';
 
 /**
  * An endpoint that answers with nothing but a sentence.
@@ -685,6 +685,37 @@ export const api = {
   adminPosition: () => request<CashPosition>('/admin/position'),
   exportPayablesCSV: () => downloadBlob('/admin/payables/export', 'payables.csv'),
 
+  // The buy side. Ordering, taking delivery and being invoiced are three
+  // separate calls because they are three separate events — see the note on
+  // models.PurchaseOrder. Receiving goods never creates a payable.
+  adminListPurchaseOrders: (params?: { status?: string; supplier?: string; opportunity_id?: string }) => {
+    const qs = new URLSearchParams(params as Record<string, string>).toString();
+    return request<{ items: PurchaseOrder[] }>(`/admin/purchase-orders${qs ? `?${qs}` : ''}`);
+  },
+  adminGetPurchaseOrder: (id: string) =>
+    request<PurchaseOrder>(`/admin/purchase-orders/${id}`),
+  adminCreatePurchaseOrder: (body: PurchaseOrderInput) =>
+    request<PurchaseOrder>('/admin/purchase-orders', { method: 'POST', body: JSON.stringify(body) }),
+  adminUpdatePurchaseOrder: (id: string, body: PurchaseOrderInput) =>
+    request<PurchaseOrder>(`/admin/purchase-orders/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  /** Gated through the approvals engine — a 409 here is the gate, not a failure. */
+  adminIssuePurchaseOrder: (id: string) =>
+    request<PurchaseOrder>(`/admin/purchase-orders/${id}/issue`, { method: 'POST', body: '{}' }),
+  adminCancelPurchaseOrder: (id: string) =>
+    request<PurchaseOrder>(`/admin/purchase-orders/${id}/cancel`, { method: 'POST', body: '{}' }),
+  /** Returns the updated order, so the caller sees the new outstanding quantities. */
+  adminReceiveGoods: (id: string, body: GoodsReceiptInput) =>
+    request<PurchaseOrder>(`/admin/purchase-orders/${id}/receipts`, { method: 'POST', body: JSON.stringify(body) }),
+  adminListGoodsReceipts: (id: string) =>
+    request<{ items: GoodsReceipt[] }>(`/admin/purchase-orders/${id}/receipts`),
+  /** A late clearing invoice: recalculates the unit cost already in the ledger. */
+  adminAddLandedCost: (receiptId: string, body: LandedCostComponentInput) =>
+    request<{ ok: boolean }>(`/admin/goods-receipts/${receiptId}/components`, { method: 'POST', body: JSON.stringify(body) }),
+
+  /** Margin on a deal. Every figure is derived server-side; none is stored. */
+  adminDealCosting: (opportunityId: string) =>
+    request<DealCosting>(`/admin/opportunities/${opportunityId}/costing`),
+
   // Stock ledger. Quantity on hand is the sum of these rows, so `on_hand`
   // comes back with the list rather than being totalled in the browser.
   adminStockMovements: (productId: string) =>
@@ -712,6 +743,9 @@ export interface ExpenseInput {
   category: ExpenseCategory;
   reference?: string;
   smart_invoice_ref?: string;
+  /** Import VAT evidence. See the field comment on the Expense type. */
+  customs_assessment_ref?: string;
+  purchase_order_id?: string | null;
   net_amount: number;
   vat_amount: number;
   vat_treatment: VatTreatment;

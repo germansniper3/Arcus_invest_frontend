@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, X, Clock, FileText } from 'lucide-react';
+import { Plus, Trash2, X, Clock, FileText, Coins } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, errorMessage } from '../../lib/api';
 import { useCan } from '../../lib/permissions';
@@ -8,7 +8,7 @@ import { zmw } from '../../lib/money';
 import type {
   User, Opportunity, OpportunityActivity, ActivityType, OpportunityStage,
   OpportunityGrade, OpportunitySegment, OpportunityContact, OpportunityLineItem,
-  Payment, PaymentMethod, PipelineForecast,
+  Payment, PaymentMethod, PipelineForecast, DealCosting,
 } from '../../types';
 import DocumentView, { type DocumentKind, VAT_RATE } from '../../components/DocumentView';
 import { NumberField } from '../../components/NumberField';
@@ -75,6 +75,9 @@ export function PipelineSection({ active }: Props) {
 
   // Payments recorded against the opportunity currently open in the modal.
   const [payments, setPayments] = useState<Payment[]>([]);
+  // What the deal actually made, once its goods at landed cost and the expenses
+  // booked against it come off. Derived server-side; never computed here.
+  const [costing, setCosting] = useState<DealCosting | null>(null);
   const [paymentForm, setPaymentForm] = useState(emptyPayment());
   const [recordingPayment, setRecordingPayment] = useState(false);
 
@@ -132,6 +135,7 @@ export function PipelineSection({ active }: Props) {
     setActivityForm({ type: 'note', body: '' });
     setPayments([]);
     setPaymentForm(emptyPayment());
+    setCosting(null);
     setShowModal(true);
   }
 
@@ -153,6 +157,7 @@ export function PipelineSection({ active }: Props) {
     setShowModal(true);
     loadActivities(o.id);
     loadPayments(o.id);
+    loadCosting(o.id);
   }
 
   function addLineItem() {
@@ -206,6 +211,16 @@ export function PipelineSection({ active }: Props) {
       setPayments(await api.adminListPayments(opportunityId));
     } catch {
       setPayments([]);
+    }
+  }
+
+  // Margin is a read on the deal, not part of editing it: a failure here must
+  // leave the modal usable, so it clears rather than raising a toast.
+  async function loadCosting(opportunityId: string) {
+    try {
+      setCosting(await api.adminDealCosting(opportunityId));
+    } catch {
+      setCosting(null);
     }
   }
 
@@ -694,6 +709,65 @@ export function PipelineSection({ active }: Props) {
             </div>
           </div>
         </form>
+
+        {/* Margin — only for a saved deal, and only once something has actually
+            been spent against it. It sits directly under the form rather than at
+            the foot of the modal because it is a read on the deal value entered
+            a few rows above; below the engagement log and the payment recorder
+            it would be two scrolls away from the number it comments on. */}
+        {form.id && costing && (costing.total_cost > 0 || costing.goods_at_cost_unknown > 0) && (
+          <div style={{ marginTop: 'var(--space-4)', borderTop: '1px solid var(--ws-border)', paddingTop: 'var(--space-3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+              <Coins size={16} color="var(--ws-accent)" />
+              <h3 style={subHead}>Margin</h3>
+              <span style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-subtle)' }}>
+                goods at landed cost
+              </span>
+            </div>
+
+            {/* auto-fit, so this is excluded from the modal's grid-collapse rule
+                and still fits two tiles on a phone. */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 'var(--space-2)' }}>
+              <div>
+                <div style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-subtle)' }}>Deal value</div>
+                <strong style={{ fontSize: 'var(--fs-300)' }}>{zmw(costing.deal_value)}</strong>
+              </div>
+              <div>
+                <div style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-subtle)' }}>Cost of goods</div>
+                <strong style={{ fontSize: 'var(--fs-300)' }}>{zmw(costing.cost_of_goods)}</strong>
+              </div>
+              <div>
+                <div style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-subtle)' }}>Direct expenses</div>
+                <strong style={{ fontSize: 'var(--fs-300)' }}>
+                  {zmw(costing.direct_expenses + costing.irrecoverable_vat)}
+                </strong>
+              </div>
+              <div>
+                <div style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-subtle)' }}>Margin</div>
+                <strong style={{ fontSize: 'var(--fs-300)', color: costing.margin < 0 ? 'var(--tone-danger-fg)' : 'var(--ws-accent)' }}>
+                  {zmw(costing.margin)}
+                  <span style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-subtle)' }}>
+                    {' '}({costing.margin_percent.toFixed(1)}%)
+                  </span>
+                </strong>
+              </div>
+            </div>
+
+            {costing.irrecoverable_vat > 0 && (
+              <p style={{ ...quiet, marginTop: 'var(--space-2)' }}>
+                Includes {zmw(costing.irrecoverable_vat)} of input VAT that cannot be
+                reclaimed, which is a real cost of this job.
+              </p>
+            )}
+            {costing.goods_at_cost_unknown > 0 && (
+              <p style={{ ...quiet, marginTop: 'var(--space-2)' }}>
+                {costing.goods_at_cost_unknown} issued{' '}
+                {costing.goods_at_cost_unknown === 1 ? 'unit has' : 'units have'} no cost on
+                the ledger, so this margin is better than the deal really was.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Engagement log — only for a saved deal */}
         {form.id && (

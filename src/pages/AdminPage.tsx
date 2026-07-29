@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   LogOut, RefreshCcw, UserPlus, Calendar, CheckSquare, Settings, GraduationCap,
   Target, Building2, ScrollText, History, Users, Wallet, Image as ImageIcon, ShieldCheck,
-  Banknote, Store
+  Banknote, Store, Truck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, errorMessage } from '../lib/api';
@@ -15,6 +15,7 @@ import { CatalogueSection } from '../features/catalogue/CatalogueSection';
 import { EventsSection } from '../features/events/EventsSection';
 import { IntakeSection } from '../features/intake/IntakeSection';
 import { PayablesSection } from '../features/payables/PayablesSection';
+import { PurchasingSection } from '../features/purchasing/PurchasingSection';
 import { CounterSection } from '../features/counter/CounterSection';
 import { SECTION_ACTION_SLOT_ID } from '../components/SectionAction';
 import { SECTION_METRICS_SLOT_ID } from '../components/SectionMetrics';
@@ -173,6 +174,7 @@ export function AdminPage() {
             ['contracts', 'Contracts', ScrollText, can('contracts')],
             ['receivables', 'Receivables', Wallet, can('payments')],
             ['payables', 'Payables', Banknote, can('expenses')],
+            ['purchasing', 'Purchasing', Truck, can('purchase_orders')],
             ['counter', 'Counter', Store, can('counter_sales')],
             ['approvals', 'Approvals', ShieldCheck, can('approvals')],
             ['enrollments', 'Enrollments', UserPlus, can('enrollments')],
@@ -225,6 +227,7 @@ export function AdminPage() {
               {activeTab === 'contracts' && 'Contract Repository'}
               {activeTab === 'receivables' && 'Receivables'}
               {activeTab === 'payables' && 'Payables & Cash Position'}
+              {activeTab === 'purchasing' && 'Purchase Orders & Landed Cost'}
               {activeTab === 'counter' && 'Counter'}
               {activeTab === 'approvals' && 'Approvals'}
               {activeTab === 'enrollments' && 'Innovation Hub Intake'}
@@ -269,6 +272,11 @@ export function AdminPage() {
 
         {/* The supplier ledger and the combined cash position. */}
         <PayablesSection active={activeTab === 'payables'} />
+
+        {/* The buy side: ordering, goods receipt and landed cost. Separate from
+            payables because committing to an order, taking delivery and being
+            invoiced are three events at three different times. */}
+        <PurchasingSection active={activeTab === 'purchasing'} />
 
         {/* Walk-in selling. Not the deal pipeline — see models.CounterSale. */}
         <CounterSection active={activeTab === 'counter'} />

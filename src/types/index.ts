@@ -4,7 +4,7 @@ export type PermissionResource =
   | 'opportunities' | 'accounts' | 'contracts' | 'payments' | 'quotes'
   | 'enrollments' | 'students' | 'events' | 'products' | 'users'
   | 'audit' | 'email' | 'metrics' | 'roles' | 'gallery' | 'notifications'
-  | 'approvals' | 'expenses' | 'counter_sales';
+  | 'approvals' | 'expenses' | 'counter_sales' | 'purchase_orders';
 
 // --- Money out (payables) --------------------------------------------------
 
@@ -42,6 +42,13 @@ export interface Expense {
   category: ExpenseCategory;
   reference: string;
   smart_invoice_ref: string;
+  /**
+   * Import VAT evidence: the ZRA customs assessment behind an imported
+   * purchase. Deliberately not the Smart Invoice field — that rule is about
+   * domestic supply, and a foreign supplier has no Mark ID to give.
+   */
+  customs_assessment_ref: string;
+  purchase_order_id: string | null;
   net_amount: number;
   vat_amount: number;
   vat_treatment: VatTreatment;
@@ -732,4 +739,172 @@ export interface PipelineForecast {
   win_rate: number;
   total_count: number;
   stages: PipelineStageSummary[];
+}
+
+// --- The buy side: purchase orders, goods receipt and landed cost ----------
+
+/**
+ * Where an order stands.
+ *
+ * Only `approved` may be issued and only `issued` may receive goods; the server
+ * enforces both, so nothing here is a client-side rule. `pending_approval` is
+ * where the approval gate parks an order while a request is open.
+ */
+export type PurchaseOrderStatus =
+  | 'draft' | 'pending_approval' | 'approved' | 'rejected'
+  | 'issued' | 'partly_received' | 'received' | 'closed' | 'cancelled';
+
+/** What a landed cost component is for. Kept apart because they behave differently. */
+export type LandedCostKind =
+  | 'freight' | 'insurance' | 'duty' | 'clearing' | 'handling' | 'other';
+
+/**
+ * How a receipt's cost components are spread across its lines.
+ *
+ * Stored on the receipt rather than assumed, so the arithmetic can be
+ * re-derived later — an apportionment nobody can reproduce looks like a fact.
+ */
+export type ApportionmentBasis = 'value' | 'quantity' | 'weight';
+
+export interface PurchaseOrderLine {
+  id: string;
+  /** Null for a line that is not a catalogue product — a spare, a service, a one-off. */
+  product_id: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  position: number;
+  /** Summed from the goods receipts, never stored, so it cannot drift from them. */
+  received_quantity: number;
+  outstanding_quantity: number;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  /** Allocated on issue, so abandoned drafts do not punch holes in the sequence. */
+  number: string;
+  supplier: string;
+  supplier_tpin: string;
+  /** The currency the supplier priced in. Line unit prices are in this currency. */
+  currency: string;
+  /** Kwacha per one unit of `currency`. Exactly 1 for a ZMW order. */
+  exchange_rate: number;
+  status: PurchaseOrderStatus;
+  order_date: string;
+  expected_delivery: string | null;
+  incoterms: string;
+  shipping_term: string;
+  opportunity_id: string | null;
+  notes: string;
+  issued_at: string | null;
+  raised_by: string;
+  subtotal: number;
+  subtotal_zmw: number;
+  fully_received: boolean;
+  partly_received: boolean;
+  lines: PurchaseOrderLine[];
+}
+
+export interface LandedCostComponent {
+  id: string;
+  goods_receipt_id: string;
+  kind: LandedCostKind;
+  description: string;
+  currency: string;
+  amount: number;
+  exchange_rate: number;
+  reference: string;
+  incurred_at: string;
+  expense_id: string | null;
+  recorded_by: string;
+}
+
+export interface GoodsReceiptLine {
+  id: string;
+  goods_receipt_id: string;
+  purchase_order_line_id: string;
+  quantity: number;
+  weight: number;
+  /** The landed cost of one unit: supplier price at this receipt's rate plus its share. */
+  unit_cost_zmw: number;
+  apportioned_zmw: number;
+  stock_movement_id: string | null;
+}
+
+export interface GoodsReceipt {
+  id: string;
+  purchase_order_id: string;
+  received_at: string;
+  reference: string;
+  /** Import VAT evidence. Not the Smart Invoice field — see Expense. */
+  customs_assessment_ref: string;
+  exchange_rate: number;
+  basis: ApportionmentBasis;
+  apportioned_at: string | null;
+  notes: string;
+  received_by: string;
+  components_total_zmw: number;
+  lines: GoodsReceiptLine[];
+  components: LandedCostComponent[];
+}
+
+export interface PurchaseOrderLineInput {
+  product_id?: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface PurchaseOrderInput {
+  supplier: string;
+  supplier_tpin: string;
+  currency: string;
+  exchange_rate: number;
+  expected_delivery?: string | null;
+  incoterms: string;
+  shipping_term: string;
+  opportunity_id?: string | null;
+  notes: string;
+  lines: PurchaseOrderLineInput[];
+}
+
+export interface LandedCostComponentInput {
+  kind: LandedCostKind;
+  description: string;
+  currency: string;
+  amount: number;
+  exchange_rate: number;
+  reference: string;
+}
+
+export interface GoodsReceiptInput {
+  received_at?: string | null;
+  reference: string;
+  customs_assessment_ref: string;
+  exchange_rate: number;
+  basis: ApportionmentBasis;
+  notes: string;
+  lines: { purchase_order_line_id: string; quantity: number; weight: number }[];
+  components: LandedCostComponentInput[];
+}
+
+/**
+ * What a deal made, once the goods it consumed and the costs booked against it
+ * are taken off its value. Every figure is derived on the server.
+ */
+export interface DealCosting {
+  deal_value: number;
+  /** Goods valued at what they landed for, not at the supplier's price. */
+  cost_of_goods: number;
+  direct_expenses: number;
+  /** Input VAT paid that ZRA will not accept a claim for. A real cost of the job. */
+  irrecoverable_vat: number;
+  total_cost: number;
+  margin: number;
+  margin_percent: number;
+  /** Issued units the ledger could not cost, surfaced rather than valued at zero. */
+  goods_at_cost_unknown: number;
 }
