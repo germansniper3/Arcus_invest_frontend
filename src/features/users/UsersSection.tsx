@@ -297,7 +297,7 @@ export function UsersSection({ active }: Props) {
               {roles.length === 0 ? (
                 <p className="empty">No roles loaded.</p>
               ) : (
-                <div style={{ overflowX: 'auto', border: '1px solid var(--ws-border-strong)', borderRadius: '8px', background: 'var(--ws-panel)' }}>
+                <div className="scroll-x">
                   <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px', fontSize: 'var(--fs-300)', color: 'var(--ws-fg)' }}>
                     <thead>
                       <tr style={{ textAlign: 'left' }}>
@@ -432,7 +432,7 @@ export function UsersSection({ active }: Props) {
               emptyMessage="No users found."
               emptyIcon={<Users size={26} strokeWidth={1.5} />}
             >
-              <div style={{ overflowX: 'auto', border: '1px solid var(--ws-border-strong)', borderRadius: '8px', background: 'var(--ws-panel)' }}>
+              <div className="scroll-x">
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px', fontSize: 'var(--fs-300)', color: 'var(--ws-fg)' }}>
                   <thead>
                     <tr style={{ textAlign: 'left' }}>
@@ -577,7 +577,7 @@ export function UsersSection({ active }: Props) {
                 permissions, create a custom role.
               </p>
             )}
-            <div style={{ overflowX: 'auto', border: '1px solid var(--ws-border-strong)', borderRadius: '6px', marginTop: 'var(--space-2)' }}>
+            <div className="scroll-x" style={{ marginTop: 'var(--space-2)' }}>
               <table className="perm-matrix">
                 <thead>
                   <tr>

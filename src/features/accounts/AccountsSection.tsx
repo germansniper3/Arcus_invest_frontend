@@ -129,7 +129,7 @@ export function AccountsSection({ active }: Props) {
           emptyMessage="Name the account on a deal and it will appear here."
           emptyIcon={<Building2 size={26} strokeWidth={1.5} />}
         >
-          <div style={{ overflowX: 'auto', border: '1px solid var(--ws-border-strong)', borderRadius: '8px', background: 'var(--ws-panel)' }}>
+          <div className="scroll-x">
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px', fontSize: 'var(--fs-300)', color: 'var(--ws-fg)' }}>
               <thead>
                 <tr style={{ textAlign: 'left' }}>

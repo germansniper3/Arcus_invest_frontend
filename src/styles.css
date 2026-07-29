@@ -504,6 +504,41 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 .metric-row article, .panel { border: 1px solid #d6d8d0; border-radius: 8px; padding: 22px; background: #fff; box-shadow: 0 1px 0 rgba(17, 21, 18, 0.03); }
 .metric-row span { display: block; color: #111512; font-size: 40px; font-weight: 900; line-height: 0.95; }
 .metric-row p { margin: 8px 0 0; font-size: var(--fs-200); text-transform: uppercase; font-weight: var(--fw-strong); color: var(--ws-fg-muted); }
+/* A horizontally scrollable region — wide tables, mostly.
+   It fixes two separate complaints about the same box.
+
+   The page never actually overflowed: these tables carry a min-width and scroll
+   inside their own container, which is correct. But iOS hides scrollbars until a
+   drag begins, so a table clipped at its border reads as content cut off rather
+   than content to scroll, and nobody thinks to swipe it. The right-edge shadow
+   says "there is more this way" before any gesture.
+
+   Second, a horizontal drag inside a vertically scrolling page chains to the
+   page and the inner scroll never takes — under a thumb the two fight and the
+   page usually wins. overscroll-behavior-x keeps the gesture here.
+
+   The shadows use background-attachment: local, which is what makes each one
+   appear only at an edge that can really scroll: the two `local` layers travel
+   with the content and slide out from under the fixed cover layers when there is
+   nothing left to reveal. No scroll listener, no JS. */
+.scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--ws-border-strong);
+  border-radius: 8px;
+  background-color: var(--ws-panel);
+  background-image:
+    linear-gradient(to right, var(--ws-panel) 30%, rgba(255, 255, 255, 0)),
+    linear-gradient(to left, var(--ws-panel) 30%, rgba(255, 255, 255, 0)),
+    radial-gradient(farthest-side at 0 50%, rgba(17, 21, 18, 0.16), rgba(17, 21, 18, 0)),
+    radial-gradient(farthest-side at 100% 50%, rgba(17, 21, 18, 0.16), rgba(17, 21, 18, 0));
+  background-position: left center, right center, left center, right center;
+  background-repeat: no-repeat;
+  background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+
 .data-section { margin-top: 26px; }
 .data-section h2 { font-size: 22px; color: #111512; line-height: 1.14; }
 .table { display: grid; gap: 10px; }
@@ -607,8 +642,35 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
              max(22px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   }
   .workspace-head { align-items: flex-start; flex-direction: column; gap: 14px; }
-  /* Catch every inline multi-column grid inside the dashboards and stack it */
-  .work-main [style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+  /* Catch every inline multi-column grid inside the dashboards and stack it.
+     Carries the same exclusions as the .modal-card rule below — it did not, and
+     the difference was doing real damage on a phone:
+
+     - auto-fit / auto-fill strips were being flattened to a single column here
+       while the identical markup inside a dialog kept two tiles. The metric
+       strips and the permissions summary lost half their density for nothing.
+     - .grid-keep and .grid-record were documented as opt-outs but only ever
+       worked inside a dialog. In the workspace they were inert, so a record row
+       still stacked into N full-width controls with the remove X as a bar. */
+  .work-main [style*="grid-template-columns"]:not([style*="auto-fit"]):not([style*="auto-fill"]):not(.grid-keep):not(.grid-record) {
+    grid-template-columns: 1fr !important;
+  }
+  /* The rule that actually stops the page being cut off, and the one .work-main
+     was missing entirely.
+     A grid child's min-width defaults to auto, so a single unbroken string — an
+     email address, a reference number — sets its column's floor and pushes the
+     row wider than the screen even after the grid has been stacked. Because
+     .workspace is overflow-x: clip, the excess is not scrollable, it is simply
+     gone: content silently cut off at both ends with no scrollbar to reveal it.
+     The dialog rule below has always had this; the workspace never did.
+
+     min-width: 0 alone is necessary but not sufficient: it stops the track from
+     growing, but the string still overflows the cell it is now confined to, and
+     overflow-x: clip means that excess is unreachable rather than scrollable.
+     overflow-wrap: anywhere lets the break happen mid-token, and unlike
+     break-word it also feeds into min-content sizing, so the track cannot ask
+     for the full unbroken width in the first place. */
+  .work-main [style*="grid-template-columns"] > * { min-width: 0; overflow-wrap: anywhere; }
 
   /* --- Modal grids ---------------------------------------------------------
      Radix renders Dialog.Portal into document.body, which is *outside*
@@ -631,7 +693,9 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
   /* A grid child's min-width defaults to auto, so a single unbroken string —
      a reference number, an email address — sets its column's floor and pushes
      the card past the screen even after the grid has been stacked. */
-  .modal-card [style*="grid-template-columns"] > * { min-width: 0; }
+     overflow-wrap matches the .work-main rule above: min-width: 0 confines the
+     track, but the string still overflowed the cell inside it. */
+  .modal-card [style*="grid-template-columns"] > * { min-width: 0; overflow-wrap: anywhere; }
 
   /* Repeating record rows: a few fields plus a trailing remove button.
      Stacked into four full-width controls these stop reading as one record,
