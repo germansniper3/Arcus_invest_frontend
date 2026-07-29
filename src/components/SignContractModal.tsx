@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Modal } from './Modal';
 import { NumberField } from './NumberField';
-import { api } from '../lib/api';
+import { api, errorMessage } from '../lib/api';
 import type { Contract } from '../types';
 
 /**
@@ -92,7 +92,7 @@ export function SignContractModal({ open, contract, onClose, onSigned }: SignCon
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#111512';
+    ctx.strokeStyle = 'var(--ws-fg)';
   }
 
   function continueStroke(e: React.PointerEvent<HTMLCanvasElement>) {
@@ -130,8 +130,8 @@ export function SignContractModal({ open, contract, onClose, onSigned }: SignCon
       toast.success('Contract signed');
       onSigned();
       onClose();
-    } catch (err: any) {
-      toast.error(err.message || 'Could not sign the contract');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Could not sign the contract'));
     } finally {
       setSigning(false);
     }
@@ -154,9 +154,9 @@ export function SignContractModal({ open, contract, onClose, onSigned }: SignCon
     >
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 180px', gap: '16px', alignItems: 'start' }}>
         <div>
-          <label style={{ fontSize: '12px', color: '#5a625d' }}>Signature</label>
+          <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Signature</label>
           {previewImage ? (
-            <div style={{ border: '1px solid #d8dbd1', borderRadius: '6px', background: '#fff', padding: '8px', textAlign: 'center' }}>
+            <div style={{ border: '1px solid var(--ws-border-strong)', borderRadius: '6px', background: 'var(--ws-panel)', padding: '8px', textAlign: 'center' }}>
               <img src={previewImage} alt="Saved signature" style={{ maxWidth: '100%', maxHeight: '120px' }} />
             </div>
           ) : (
@@ -168,22 +168,22 @@ export function SignContractModal({ open, contract, onClose, onSigned }: SignCon
               onPointerMove={continueStroke}
               onPointerUp={endStroke}
               onPointerLeave={endStroke}
-              style={{ width: '100%', height: '180px', border: '1px solid #d8dbd1', borderRadius: '6px', background: '#fff', touchAction: 'none', cursor: 'crosshair', display: 'block' }}
+              style={{ width: '100%', height: '180px', border: '1px solid var(--ws-border-strong)', borderRadius: '6px', background: 'var(--ws-panel)', touchAction: 'none', cursor: 'crosshair', display: 'block' }}
             />
           )}
           <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
             {!usingSaved && (
-              <button type="button" onClick={clearCanvas} style={{ background: '#eef0ea', border: '1px solid #dfe1da', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', color: '#111512', cursor: 'pointer' }}>
+              <button type="button" onClick={clearCanvas} style={{ background: 'var(--ws-canvas)', border: '1px solid var(--ws-border)', borderRadius: '4px', padding: '6px 12px', fontSize: 'var(--fs-200)', color: 'var(--ws-fg)', cursor: 'pointer' }}>
                 Clear
               </button>
             )}
             {savedSignature && (
-              <button type="button" onClick={() => setUsingSaved((v) => !v)} style={{ background: '#eef0ea', border: '1px solid #dfe1da', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', color: '#111512', cursor: 'pointer' }}>
+              <button type="button" onClick={() => setUsingSaved((v) => !v)} style={{ background: 'var(--ws-canvas)', border: '1px solid var(--ws-border)', borderRadius: '4px', padding: '6px 12px', fontSize: 'var(--fs-200)', color: 'var(--ws-fg)', cursor: 'pointer' }}>
                 {usingSaved ? 'Draw a new one' : 'Use my saved signature'}
               </button>
             )}
             {!usingSaved && (
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#5a625d' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>
                 <input type="checkbox" checked={saveForNextTime} onChange={(e) => setSaveForNextTime(e.target.checked)} style={{ width: 'auto' }} />
                 Save for next time
               </label>
@@ -192,7 +192,7 @@ export function SignContractModal({ open, contract, onClose, onSigned }: SignCon
         </div>
 
         <div>
-          <label style={{ fontSize: '12px', color: '#5a625d' }}>Placement: click the page</label>
+          <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Placement: click the page</label>
           {/* Schematic page, not a render of the document. The fractions taken
               from a click here are applied to the real page server-side. */}
           <div
@@ -203,7 +203,7 @@ export function SignContractModal({ open, contract, onClose, onSigned }: SignCon
                 y: Math.min(0.98, Math.max(0, (e.clientY - rect.top) / rect.height)),
               });
             }}
-            style={{ position: 'relative', width: '100%', aspectRatio: `1 / ${PAGE_ASPECT}`, border: '1px solid #d8dbd1', borderRadius: '4px', background: '#fff', cursor: 'crosshair', overflow: 'hidden' }}
+            style={{ position: 'relative', width: '100%', aspectRatio: `1 / ${PAGE_ASPECT}`, border: '1px solid var(--ws-border-strong)', borderRadius: '4px', background: 'var(--ws-panel)', cursor: 'crosshair', overflow: 'hidden' }}
           >
             <div
               style={{
@@ -213,24 +213,24 @@ export function SignContractModal({ open, contract, onClose, onSigned }: SignCon
                 width: `${widthFrac * 100}%`,
                 height: '14px',
                 transform: 'translateY(-50%)',
-                border: '1px dashed #5f7c29',
+                border: '1px dashed var(--ws-accent)',
                 background: 'rgba(95,124,41,0.12)',
                 borderRadius: '2px',
               }}
             />
           </div>
           <div style={{ marginTop: '8px' }}>
-            <label style={{ fontSize: '12px', color: '#5a625d' }}>Page</label>
-            <NumberField min="1" step="1" value={page} onChange={setPage} style={{ fontSize: '13px', padding: '8px 10px' }} />
+            <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Page</label>
+            <NumberField min="1" step="1" value={page} onChange={setPage} style={{ fontSize: 'var(--fs-300)', padding: '8px 10px' }} />
           </div>
           <div style={{ marginTop: '6px' }}>
-            <label style={{ fontSize: '12px', color: '#5a625d' }}>Width (% of page)</label>
+            <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Width (% of page)</label>
             <NumberField
               min="5"
               max="90"
               value={Math.round(widthFrac * 100)}
               onChange={(pct) => setWidthFrac(Math.min(0.9, Math.max(0.05, pct / 100)))}
-              style={{ fontSize: '13px', padding: '8px 10px' }}
+              style={{ fontSize: 'var(--fs-300)', padding: '8px 10px' }}
             />
           </div>
         </div>

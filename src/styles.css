@@ -20,6 +20,83 @@
   --dur-press: 140ms;
   --dur-fast: 180ms;
   --dur-modal: 240ms;
+
+  /* --- Type scale ----------------------------------------------------------
+     Seven steps. Before this the product used ten sizes with 493 of its 580
+     declarations sitting between 10px and 14px, which is not a hierarchy — it
+     is one size with rounding error. These steps are far enough apart to be
+     read as different ranks at a glance.
+
+     In dense tables, reach for weight and colour before the next size up: a
+     12px --fw-strong in --ws-fg outranks a 12px --fw-regular in
+     --ws-fg-muted without spending a step. Adding sizes is how the previous
+     ten happened. */
+  --fs-100: 11px;   /* eyebrow, micro-label, uppercase key */
+  --fs-200: 12px;   /* metadata, secondary cell text */
+  --fs-300: 14px;   /* body — the back office default */
+  --fs-400: 16px;   /* emphasised body, form controls */
+  --fs-500: 20px;   /* card and panel titles */
+  --fs-600: 28px;   /* section titles */
+  --fs-700: 40px;   /* page titles, headline figures */
+
+  /* Line height travels with the size: tight for display, open for prose. */
+  --lh-tight: 1.15;
+  --lh-snug: 1.35;
+  --lh-body: 1.55;
+
+  /* Weight. 400 and 500 are indistinguishable at 12px on most screens, so the
+     ladder skips 500 and makes 600 the first real step above regular. */
+  --fw-regular: 400;
+  --fw-medium: 600;
+  --fw-strong: 700;
+  --fw-heavy: 800;
+
+  /* --- Vertical rhythm -----------------------------------------------------
+     Gaps carried no meaning: 12px and 24px were used interchangeably whether
+     two things were related or not, so nothing grouped. These five steps do
+     carry meaning, and the ratio between them is wide enough to see. Space is
+     the cheapest way to show structure and this product spent none of it. */
+  --space-1: 4px;    /* inside a line — an icon and its label */
+  --space-2: 8px;    /* between parts of one thing */
+  --space-3: 16px;   /* between things in a group */
+  --space-4: 28px;   /* between groups */
+  --space-5: 44px;   /* between sections */
+
+  /* --- Back-office palette -------------------------------------------------
+     The workspace is a light surface sitting beneath the dark public site, so
+     it cannot reuse --ink/--surface/--muted above. These ten values account
+     for the great majority of the several hundred hand-typed hex codes in the
+     admin: #5a625d alone appears 229 times, #111512 202 times. Naming them is
+     what turns "change the secondary text colour" into a one-line edit rather
+     than a find-and-replace across 3,000 lines. */
+  --ws-fg: #111512;            /* primary text */
+  --ws-fg-muted: #5a625d;      /* secondary text, labels */
+  --ws-fg-subtle: #8a908a;     /* tertiary, placeholder */
+  --ws-fg-faint: #b0b4ab;      /* quaternary, disabled, empty-state icon */
+  --ws-canvas: #eef0ea;        /* the workspace background */
+  --ws-panel: #ffffff;         /* cards, rows, panels */
+  --ws-sunken: #f7f8f3;        /* inputs, wells, secondary buttons */
+  --ws-border: #dfe1da;        /* the default rule */
+  --ws-border-strong: #d8dbd1; /* input edges, where the border is the affordance */
+  --ws-accent: #5f7c29;        /* --accent darkened to hold contrast on white */
+
+  /* --- Status tones --------------------------------------------------------
+     One system replacing five separate Record<string, {bg, fg}> maps in
+     AdminPage (role, audit action, grade, segment, contract status), each with
+     its own hand-picked pastels. A tone is a background/foreground pair; the
+     maps now name a tone, so a contract that is "active", an audit "approve"
+     and a "growth" segment — all of which mean the same kind of thing — stop
+     being three different greens. */
+  --tone-neutral-bg: #eceee7;  --tone-neutral-fg: #5a625d;
+  --tone-positive-bg: #e8f2dc; --tone-positive-fg: #35520f;
+  --tone-active-bg: #dcefe0;   --tone-active-fg: #2f6b3d;
+  --tone-info-bg: #e2ecf8;     --tone-info-fg: #2a5788;
+  --tone-notice-bg: #f7edc8;   --tone-notice-fg: #8a6d1a;
+  --tone-danger-bg: #ffe2e2;   --tone-danger-fg: #aa0000;
+  --tone-special-bg: #e7dff2;  --tone-special-fg: #5b3a8a;
+  --tone-earth-bg: #f0e0d0;    --tone-earth-fg: #8a5a2b;
+  --tone-slate-bg: #e6e8ea;    --tone-slate-fg: #5a6572;
+  --tone-cool-bg: #e2ecf2;     --tone-cool-fg: #37607a;
 }
 
 * { box-sizing: border-box; }
@@ -74,16 +151,18 @@ button:disabled:active, button[aria-disabled="true"]:active {
   justify-content: space-between;
   gap: 24px;
   padding: 18px clamp(18px, 4vw, 56px);
-  background: linear-gradient(180deg, rgba(11, 13, 12, 0.88), rgba(11, 13, 12, 0));
+  background: linear-gradient(180deg, rgba(7, 9, 8, 0.86), rgba(7, 9, 8, 0.34) 64%, rgba(7, 9, 8, 0));
+  backdrop-filter: blur(10px);
 }
-.brand { display: inline-flex; align-items: center; gap: 12px; font-weight: 800; }
+.brand { display: inline-flex; align-items: center; gap: 12px; font-weight: 800; letter-spacing: 0; }
 .brand img { width: 42px; height: 42px; object-fit: contain; background: #fff; border-radius: 8px; padding: 4px; }
-.nav nav { display: flex; align-items: center; gap: 18px; color: #ede8d8; font-size: 14px; }
+.nav nav { display: flex; align-items: center; gap: 18px; color: #ede8d8; font-size: 14px; font-weight: 650; }
 .icon-link { display: inline-flex; align-items: center; gap: 8px; }
 
-.hero { position: relative; min-height: 100svh; display: grid; align-items: end; padding: 110px clamp(20px, 5vw, 72px) 88px; overflow: hidden; }
-.hero-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(0.92) contrast(1.08); }
-.hero-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(4, 7, 5, 0.9), rgba(4, 7, 5, 0.58) 45%, rgba(4, 7, 5, 0.2)); }
+.hero { position: relative; min-height: 100svh; display: grid; align-items: end; padding: 120px clamp(20px, 5vw, 72px) clamp(56px, 9vh, 92px); overflow: hidden; }
+.hero::after { content: ""; position: absolute; inset: auto 0 0; height: 26vh; background: linear-gradient(180deg, rgba(11,13,12,0), #0e120f); }
+.hero-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(0.9) contrast(1.08); }
+.hero-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(3, 6, 4, 0.92), rgba(3, 6, 4, 0.62) 42%, rgba(3, 6, 4, 0.18)); }
 .hero-copy { position: relative; max-width: 760px; }
 .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; font-weight: 800; }
 h1, h2, h3, p { margin-top: 0; }
@@ -104,13 +183,129 @@ p { color: var(--muted); line-height: 1.7; }
 }
 .primary { background: var(--accent); color: #11170e; padding: 0 20px; font-weight: 800; }
 .secondary { border: 1px solid var(--line); padding: 0 18px; color: #fff; background: rgba(255,255,255,0.06); }
+.secondary-accent { border-color: rgba(154, 211, 91, 0.6); color: var(--accent); }
 .text-link { color: var(--accent); font-weight: 800; }
 
 .band, .quote-section, .proof { padding: 92px clamp(20px, 5vw, 72px); }
+.band-dark { background: #0e120f; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.band-black { background: #0b0d0c; border-bottom: 1px solid var(--line); }
 .section-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: start; margin-bottom: 42px; }
 /* A section head with a single child (e.g. Products, Gallery) should span the
    full width instead of leaving the second grid column empty. */
 .section-head:has(> :only-child) { grid-template-columns: 1fr; }
+.section-head-narrow { max-width: 940px; }
+.service-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.service-panel {
+  min-height: 280px;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: clamp(22px, 3vw, 34px);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,0.026);
+}
+.service-panel svg { color: var(--copper); }
+.service-panel h3 { color: #fff; max-width: 360px; }
+.service-panel p { margin: 0; font-size: 14px; }
+.proof-line {
+  margin: 28px 0 0;
+  padding-left: 18px;
+  max-width: 820px;
+  border-left: 3px solid var(--accent);
+  color: #e8eadf;
+  font-weight: 700;
+}
+.featured-service {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: clamp(28px, 5vw, 68px);
+  align-items: center;
+  margin-bottom: 62px;
+}
+.featured-service img { width: 100%; height: min(54vw, 520px); min-height: 320px; object-fit: cover; border-radius: 8px; }
+.featured-service h3 { color: #fff; font-size: clamp(28px, 3.2vw, 44px); line-height: 1.08; text-transform: uppercase; }
+.featured-service p:not(.eyebrow) { font-size: 16px; max-width: 560px; }
+.inventory-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding-top: 34px; border-top: 1px solid var(--line); margin-bottom: 22px; }
+.inventory-head h3 { color: #fff; margin: 0; }
+.inventory-head span { color: var(--muted); font-size: 13px; }
+.inventory-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.product-tile { display: grid; grid-template-rows: 220px 1fr; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #101410; }
+.product-media { position: relative; background: #141a15; }
+.product-media img, .product-media .image-fallback { width: 100%; height: 100%; min-height: 0; object-fit: cover; border-radius: 0; }
+.product-media span {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.product-media span[data-stock="in"] { background: var(--tone-positive-bg); color: var(--tone-positive-fg); }
+.product-media span[data-stock="out"] { background: var(--tone-danger-bg); color: var(--tone-danger-fg); }
+.product-body { display: grid; gap: 14px; padding: 22px; }
+.product-body h4 { color: #fff; font-size: 19px; margin: 0; }
+.product-body p { margin: 0; font-size: 13px; }
+.product-body code {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #151c16;
+  color: var(--accent);
+  white-space: pre-wrap;
+}
+.product-body footer { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line); }
+.product-body footer span { display: block; color: #6f766d; font-size: 11px; text-transform: uppercase; font-weight: 800; }
+.product-body footer strong { color: #fff; }
+.product-body .primary { min-height: 36px; padding: 0 14px; font-size: 12px; }
+.empty-public { border: 1px dashed var(--line); border-radius: 8px; padding: 36px; color: var(--muted); text-align: center; }
+.workshop-feature {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.78fr) minmax(0, 1.22fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: start;
+  padding: 92px clamp(20px, 5vw, 72px);
+  background: #0e120f;
+  border-bottom: 1px solid var(--line);
+}
+.workshop-copy { position: sticky; top: 112px; }
+.workshop-copy h2 { color: #fff; }
+.segmented { display: inline-flex; gap: 4px; padding: 4px; margin-top: 22px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,0.04); }
+.segmented button { min-height: 36px; border: 0; border-radius: 6px; padding: 0 14px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 800; }
+.segmented button.active { background: var(--accent); color: #11170e; }
+.workshop-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.86fr); gap: 28px; align-items: center; }
+.workshop-panel img { width: 100%; min-height: 460px; height: 58vh; max-height: 620px; object-fit: cover; border-radius: 8px; }
+.workshop-panel h3 { color: #fff; font-size: clamp(24px, 3vw, 34px); text-transform: uppercase; }
+.detail-list { display: grid; gap: 14px; margin: 22px 0; }
+.detail-list div { padding-top: 14px; border-top: 1px solid var(--line); }
+.detail-list strong { display: block; color: var(--accent); font-size: 12px; text-transform: uppercase; margin-bottom: 4px; }
+.detail-list span { display: block; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.event-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.event-card { overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #121714; }
+.event-card > img, .event-card > .image-fallback { width: 100%; height: 170px; min-height: 0; object-fit: cover; border-radius: 0; }
+.event-card > div { display: grid; gap: 14px; padding: 20px; }
+.event-card h3 { color: #fff; margin: 0; }
+.event-card p { display: -webkit-box; margin: 0; font-size: 13px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.event-card dl { display: grid; gap: 6px; margin: 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.event-card dl div { display: flex; align-items: center; gap: 6px; color: #ede8d8; font-size: 12px; }
+.event-card dt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.event-card dd { margin: 0; }
+.event-card svg { color: var(--accent); }
+.event-card .primary { width: 100%; }
+.gallery-band { padding: 92px clamp(20px, 5vw, 72px); background: #0b0d0c; border-bottom: 1px solid var(--line); }
+.gallery-grid { display: grid; grid-template-columns: 1.1fr 0.9fr 0.9fr; gap: 16px; margin-bottom: 28px; }
+.gallery-grid figure { position: relative; min-height: 300px; margin: 0; overflow: hidden; border-radius: 8px; background: #121714; }
+.gallery-grid figure:first-child { min-height: 420px; grid-row: span 2; }
+.gallery-grid img { width: 100%; height: 100%; object-fit: cover; }
+.gallery-grid figcaption { position: absolute; inset: auto 0 0; display: grid; gap: 2px; padding: 16px; background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,0.72)); }
+.gallery-grid strong { color: #fff; }
+.gallery-grid span { color: #d3d7cd; font-size: 12px; }
+.gallery-cta { justify-self: start; }
 .service-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
 .service { padding: 28px; min-height: 250px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.025); }
 .service svg { color: var(--copper); margin-bottom: 34px; }
@@ -138,13 +333,14 @@ p { color: var(--muted); line-height: 1.7; }
 .proof { text-align: center; border-block: 1px solid var(--line); background: #101410; }
 .proof svg { color: var(--accent); }
 .proof p { max-width: 720px; margin: 0 auto; }
-.quote-section { display: grid; grid-template-columns: 0.75fr 1.25fr; gap: 52px; align-items: start; }
+.quote-section { display: grid; grid-template-columns: 0.75fr 1.25fr; gap: 52px; align-items: start; background: #0e120f; border-top: 1px solid var(--line); }
 .form-grid, .enrollment-form, .login-card, .capstone-form { display: grid; gap: 12px; }
 input, textarea, select { width: 100%; border: 1px solid var(--line); background: rgba(255,255,255,0.06); color: #fff; border-radius: 8px; padding: 14px 15px; outline: none; }
 textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 .form-grid { grid-template-columns: repeat(2, 1fr); }
 .form-grid .primary { justify-self: start; }
-.footer { padding: 32px clamp(20px, 5vw, 72px); color: var(--muted); border-top: 1px solid var(--line); }
+.footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 32px clamp(20px, 5vw, 72px); color: var(--muted); border-top: 1px solid var(--line); }
+.footer span:last-child { font-size: 12px; color: #5a625d; }
 
 .hub { padding-top: 86px; }
 .hub-hero { display: grid; grid-template-columns: 1fr 0.9fr; gap: 50px; align-items: center; min-height: 78svh; padding: 68px clamp(20px, 5vw, 72px); background: radial-gradient(circle at 80% 20%, rgba(154,211,91,0.15), transparent 34%), #0e120f; }
@@ -218,19 +414,31 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 .auth-back { display: inline-flex; align-items: center; gap: 6px; color: #5a625d; }
 .auth-back:hover { color: #111512; }
 
-.workspace { min-height: 100svh; display: grid; grid-template-columns: 250px 1fr; background: #eef0ea; color: #111512; max-width: 100%; overflow-x: clip; }
-.rail { background: #0d120f; color: #fff; padding: 24px 18px; display: flex; flex-direction: column; gap: 20px; position: sticky; top: 0; height: 100svh; overflow-y: auto; min-width: 0; }
+.workspace { min-height: 100svh; display: grid; grid-template-columns: 264px 1fr; background: #eef0ea; color: #111512; max-width: 100%; overflow-x: clip; }
+/* The rail is the left-most element, so in landscape the Dynamic Island sits
+   over it — it and the bottom home indicator are the visible casualties of
+   viewport-fit=cover. */
+.rail {
+  background:
+    linear-gradient(180deg, rgba(154, 211, 91, 0.07), rgba(154, 211, 91, 0) 28%),
+    #0d120f;
+  color: #fff;
+  padding: 24px 18px max(24px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  display: flex; flex-direction: column; gap: 20px;
+  position: sticky; top: 0; height: 100svh; overflow-y: auto; min-width: 0;
+  border-right: 1px solid rgba(255,255,255,0.08);
+}
 .rail span { color: var(--muted); }
 
-.rail-head { display: flex; flex-direction: column; gap: 2px; }
+.rail-head { display: flex; flex-direction: column; gap: 3px; padding: 4px 4px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); }
 .rail-title { font-size: 17px; font-weight: 800; line-height: 1.2; }
 .rail-user { font-size: 13px; color: var(--muted); }
 
 .rail-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 .rail button { background: rgba(255,255,255,0.08); color: #fff; padding: 0 12px; justify-content: flex-start; }
-.rail-nav button { background: transparent; color: #d7dbd3; width: 100%; min-height: 42px; font-size: 14px; font-weight: 600; }
+.rail-nav button { background: transparent; color: #d7dbd3; width: 100%; min-height: 42px; font-size: 14px; font-weight: 650; border: 1px solid transparent; }
 .rail-nav button:hover { background: rgba(255,255,255,0.07); color: #fff; }
-.rail-nav button.active { background: var(--accent); color: #11170e; }
+.rail-nav button.active { background: #e8f2dc; color: #11170e; border-color: rgba(154, 211, 91, 0.8); }
 
 .rail-program { display: flex; flex-direction: column; gap: 8px; }
 .rail-program-label { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.05em; }
@@ -240,19 +448,40 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 
 .student-sections { display: grid; gap: 24px; max-width: 860px; }
 
-.modal-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.6); display: grid; place-items: center; padding: 16px; }
+/* A dialog is centred, so only the insets can clip it. */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.6);
+  display: grid; place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+           max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
 .modal-card { background: #fff; border: 1px solid #d8dbd1; color: #111512; border-radius: 8px; padding: clamp(20px, 4vw, 32px); width: min(500px, 100%); max-height: 92vh; overflow-y: auto; display: grid; gap: 16px; }
-.work-main { padding: 36px; min-height: 100vh; min-width: 0; max-width: 100%; }
-.workspace-head { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 26px; }
-.workspace h1 { font-size: clamp(34px, 5vw, 58px); color: #111512; }
+/* 100svh, not 100vh: on iOS 100vh is the *large* viewport height, so the pane
+   runs under the Safari toolbar and adds a toolbar's worth of phantom scroll to
+   every section. Everything else was already moved; this was the last one.
+
+   The safe-area insets are a *floor* on the padding (max(), not +), so on a
+   device without them — every desktop, every Android — they resolve to the
+   36px that was already here and nothing moves. The left inset matters below
+   900px, where the rail stops being the left-most element. */
+.work-main {
+  padding: 38px max(40px, env(safe-area-inset-right))
+           max(40px, env(safe-area-inset-bottom)) max(40px, env(safe-area-inset-left));
+  min-height: 100svh;
+  min-width: 0;
+  max-width: 100%;
+}
+.workspace-head { display: flex; justify-content: space-between; gap: 24px; align-items: flex-end; margin-bottom: 30px; padding-bottom: 18px; border-bottom: 1px solid var(--ws-border); }
+.workspace h1 { font-size: clamp(32px, 4.4vw, 52px); color: #111512; line-height: 0.98; margin-bottom: 0; }
 .workspace p { color: #5a625d; }
-.metric-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 26px; }
-.metric-row article, .panel { border: 1px solid #d6d8d0; border-radius: 8px; padding: 22px; background: #fff; }
-.metric-row span { display: block; color: #111512; font-size: 42px; font-weight: 900; }
+.metric-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 28px; }
+.metric-row article, .panel { border: 1px solid #d6d8d0; border-radius: 8px; padding: 22px; background: #fff; box-shadow: 0 1px 0 rgba(17, 21, 18, 0.03); }
+.metric-row span { display: block; color: #111512; font-size: 40px; font-weight: 900; line-height: 0.95; }
+.metric-row p { margin: 8px 0 0; font-size: var(--fs-200); text-transform: uppercase; font-weight: var(--fw-strong); color: var(--ws-fg-muted); }
 .data-section { margin-top: 26px; }
-.data-section h2 { font-size: 24px; color: #111512; }
+.data-section h2 { font-size: 22px; color: #111512; line-height: 1.14; }
 .table { display: grid; gap: 10px; }
-.row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 12px; align-items: center; padding: 16px; background: #fff; border: 1px solid #dfe1da; border-radius: 8px; }
+.row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 12px; align-items: center; padding: 16px; background: #fff; border: 1px solid #dfe1da; border-radius: 8px; box-shadow: 0 1px 0 rgba(17, 21, 18, 0.03); }
 .row span { color: #5a625d; }
 .row p { margin: 6px 0 0; }
 .row button { background: #eef0ea; color: #111512; padding: 0 12px; }
@@ -264,7 +493,8 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 .panel h2 { color: #111512; font-size: 28px; }
 .panel input, .panel textarea { color: #111512; background: #f7f8f3; border-color: #d8dbd1; }
 
-.chat { position: fixed; right: 22px; bottom: 22px; z-index: 50; }
+/* Bottom-anchored, so it lands on the home indicator without an inset. */
+.chat { position: fixed; right: max(22px, env(safe-area-inset-right)); bottom: max(22px, env(safe-area-inset-bottom)); z-index: 50; }
 .chat-launch { width: 56px; height: 56px; border-radius: 999px; background: var(--accent); color: #11170e; box-shadow: 0 18px 40px rgba(0,0,0,0.28); }
 .chat-panel { width: min(380px, calc(100vw - 32px)); margin-bottom: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #101410; }
 .chat-head { display: flex; justify-content: space-between; align-items: center; padding: 14px; border-bottom: 1px solid var(--line); }
@@ -281,7 +511,14 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
   .nav { position: absolute; align-items: flex-start; }
   .nav nav { flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
   h1 { font-size: 58px; }
-  .section-head, .feature-row, .workshops, .quote-section, .hub-hero, .enroll-layout, .auth-screen, .workspace, .student-grid { grid-template-columns: 1fr; }
+  .section-head, .feature-row, .workshops, .quote-section, .hub-hero, .enroll-layout, .auth-screen, .workspace, .student-grid,
+  .service-strip, .featured-service, .workshop-feature, .workshop-panel, .gallery-grid { grid-template-columns: 1fr; }
+  .service-strip { border-left: 0; }
+  .service-panel { min-height: auto; border-left: 1px solid var(--line); }
+  .featured-service img { height: 420px; }
+  .workshop-copy { position: static; }
+  .workshop-panel img { min-height: 360px; height: 46vh; }
+  .gallery-grid figure:first-child { min-height: 340px; grid-row: auto; }
   /* Auth: on mobile the full-bleed photo can't cleanly cover the taller stacked
      panel, so swap it for a dark gradient and keep the brand + copy legible. */
   .auth-visual { min-height: auto; gap: 20px; padding: 32px clamp(20px, 6vw, 40px); background: radial-gradient(circle at 25% 0%, rgba(201,135,69,0.16), transparent 42%), #0e120f; }
@@ -294,10 +531,22 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
   .service-grid, .hub-flow, .metric-row { grid-template-columns: 1fr 1fr; }
   /* Sidebar collapses into a clean top app-bar: a title row, a horizontally
      scrollable tab strip, then the action buttons — no more wrapping jumble. */
-  .rail { position: static; height: auto; flex-direction: column; gap: 14px; padding: 16px; overflow-y: visible; }
+  /* Collapsed to a top app-bar, so the island is now above the rail rather
+     than beside it, and the bottom inset moves to .work-main. */
+  .rail {
+    position: static; height: auto; flex-direction: column; gap: 14px;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             16px max(16px, env(safe-area-inset-left));
+    overflow-y: visible;
+  }
   .rail-nav { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: 8px; flex: none; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
   .rail-nav::-webkit-scrollbar { display: none; }
-  .rail-nav button { flex: 0 0 auto; width: auto; white-space: nowrap; min-height: 40px; }
+  /* 44px, not the 40px this used to carry. Below 900px the rail *is* the
+     navigation — a horizontally scrolled tab strip driven by thumb — so it is
+     the most-tapped control in the product on the devices where tapping is the
+     only input. It sits outside features/, which is why it was not among the
+     21 undersized targets that were counted there. */
+  .rail-nav button { flex: 0 0 auto; width: auto; white-space: nowrap; min-height: 44px; }
   .rail-actions { flex-direction: row; }
   .rail-actions button { flex: 1; justify-content: center; }
   .student-sections { max-width: none; }
@@ -310,14 +559,129 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 
 @media (max-width: 620px) {
   .brand span { display: none; }
-  .nav nav { font-size: 12px; }
-  .hero { padding-top: 150px; }
+  .nav { gap: 14px; padding-inline: 16px; }
+  .nav nav { font-size: 12px; gap: 9px; }
+  .hero { min-height: 92svh; padding-top: 150px; }
   h1 { font-size: 44px; }
   h2 { font-size: 34px; }
-  .service-grid, .hub-flow, .form-grid, .metric-row { grid-template-columns: 1fr; }
-  .work-main { padding: 22px 16px; }
+  .hero-copy p:not(.eyebrow) { font-size: 16px; }
+  .hero-actions .primary, .hero-actions .secondary { width: 100%; }
+  .band, .quote-section, .proof, .gallery-band, .workshop-feature { padding-block: 64px; }
+  .service-grid, .hub-flow, .form-grid, .metric-row, .inventory-grid { grid-template-columns: 1fr; }
+  .featured-service img { min-height: 260px; height: 64vw; }
+  .inventory-head { align-items: flex-start; flex-direction: column; }
+  .product-body footer { align-items: flex-start; flex-direction: column; }
+  .product-body footer .primary { width: 100%; }
+  .segmented { width: 100%; display: grid; grid-template-columns: 1fr; }
+  .workshop-panel img { min-height: 260px; height: 70vw; }
+  .event-card .primary { min-height: 44px; }
+  .gallery-grid figure { min-height: 240px; }
+  .work-main {
+    padding: 22px max(16px, env(safe-area-inset-right))
+             max(22px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  .workspace-head { align-items: flex-start; flex-direction: column; gap: 14px; }
   /* Catch every inline multi-column grid inside the dashboards and stack it */
   .work-main [style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+
+  /* --- Modal grids ---------------------------------------------------------
+     Radix renders Dialog.Portal into document.body, which is *outside*
+     .work-main, so the rule directly above has never reached anything inside
+     a dialog. Measured at 375px: a 343px card holding 421px of content, and
+     the payment recorder's fixed `120px 150px 1fr auto` grid holding its
+     first two columns and crushing the Reference input to 32px.
+
+     This mirrors the .work-main rule with two exclusions:
+
+     - auto-fit / auto-fill grids already answer narrow widths correctly, and
+       on a 428px Plus they still fit two tiles per row. Flattening them would
+       be a downgrade dressed as a fix.
+     - .grid-keep and .grid-record opt out explicitly — see below. Stated as
+       :not() rather than as later overrides so the opt-out is visible at the
+       point the blanket is declared, instead of depending on source order. */
+  .modal-card [style*="grid-template-columns"]:not([style*="auto-fit"]):not([style*="auto-fill"]):not(.grid-keep):not(.grid-record) {
+    grid-template-columns: 1fr !important;
+  }
+  /* A grid child's min-width defaults to auto, so a single unbroken string —
+     a reference number, an email address — sets its column's floor and pushes
+     the card past the screen even after the grid has been stacked. */
+  .modal-card [style*="grid-template-columns"] > * { min-width: 0; }
+
+  /* Repeating record rows: a few fields plus a trailing remove button.
+     Stacked into four full-width controls these stop reading as one record,
+     and the remove X becomes a full-width bar that looks like a primary
+     action. Instead the identifying field takes its own line and the short
+     fields share the line below, so a row still looks like a row. */
+
+  /* Line item — description / qty / unit price / remove:
+       description
+       qty | unit price | X                                                */
+  .grid-record--item { grid-template-columns: 1fr 1fr auto !important; }
+  .grid-record--item > :nth-child(1) { grid-column: 1 / -1; }
+
+  /* Contact — name / role / email / remove:
+       name
+       role
+       email | X                                                          */
+  .grid-record--contact { grid-template-columns: 1fr auto !important; }
+  .grid-record--contact > :nth-child(1),
+  .grid-record--contact > :nth-child(2) { grid-column: 1 / -1; }
+
+  /* Payment — amount / method / reference / Record:
+       amount | method
+       reference
+       Record — full width, it is this form's commit                      */
+  .grid-record--payment { grid-template-columns: 1fr 1fr !important; }
+  .grid-record--payment > :nth-child(3),
+  .grid-record--payment > :nth-child(4) { grid-column: 1 / -1; }
+
+  /* --- iOS focus zoom ------------------------------------------------------
+     Mobile Safari zooms the entire page when a control with a computed
+     font-size below 16px takes focus, and it does not zoom back — tap a field
+     and the layout stays lurched for the rest of the session. This is the
+     single most obvious "not built for phones" symptom in the product.
+
+     Eleven controls in features/ carry an inline --fs-100/200/300 (11/12/14px)
+     and more inherit it from the shared `field` / `cell` style objects, so the
+     rule has to beat an inline style: hence !important, and hence scoping it
+     to the one breakpoint where it applies.
+
+     The usual fix is maximum-scale=1 on the viewport tag. That stops the zoom
+     by disabling pinch-zoom for everybody, including the users who need it,
+     and is an accessibility failure rather than a fix.
+
+     Checkboxes and radios are excluded: they render no text, and sizing some
+     of them is em-based. */
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select,
+  .perm-matrix select {
+    font-size: 16px !important;
+  }
+
+  /* --- Tap targets ---------------------------------------------------------
+     21 controls in features/ set an inline minHeight between 26px and 38px —
+     the "Respond"/"Decide"/"Download" buttons, the Cancel/Save pairs, the
+     download chips. Apple's minimum is 44x44pt.
+
+     Raised only at this breakpoint. 28px is a correct size for a dense table
+     driven by a mouse, and inflating the desktop design to satisfy a touch
+     guideline would be paying for phones with the screen this product is
+     mostly used on. Down here the sections have already stacked, so the
+     height costs nothing.
+
+     minHeight is set inline on these, so it takes !important to reach; the
+     padding is left alone so labels stay optically centred rather than
+     pinned to the top of a taller box. */
+  .work-main button,
+  .work-main [role="button"],
+  .modal-card button,
+  .doc-toolbar button {
+    min-height: 44px !important;
+  }
+  /* The remove X in a record row is square by design — 44px tall and 28px
+     wide would read as a slot rather than a button. */
+  .modal-card .grid-record button { min-width: 44px; }
 }
 
 /* Enrollment form actions — submit plus an escape hatch to clear the form. */
@@ -326,15 +690,29 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 .enroll-clear:hover { color: #fff; border-color: #6b7166; }
 
 /* --- Printable documents (quotations / invoices / receipts) --- */
-.doc-overlay { position: fixed; inset: 0; z-index: 200; background: #33362f; overflow-y: auto; padding: 0 0 60px; }
-.doc-toolbar { position: sticky; top: 0; z-index: 2; display: flex; justify-content: center; gap: 12px; padding: 14px; background: #23261f; border-bottom: 1px solid #000; }
+.doc-overlay { position: fixed; inset: 0; z-index: 200; background: #33362f; overflow-y: auto; padding: 0 0 max(60px, env(safe-area-inset-bottom)); }
+/* The toolbar is sticky at the top of a full-screen overlay, which is exactly
+   where the Dynamic Island is. */
+.doc-toolbar {
+  position: sticky; top: 0; z-index: 2; display: flex; justify-content: center; gap: 12px;
+  padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
+           14px max(14px, env(safe-area-inset-left));
+  background: #23261f; border-bottom: 1px solid #000;
+}
 .doc-print-root { display: flex; justify-content: center; padding: 28px 16px; }
 .doc-page { background: #fff; color: #111; width: 210mm; max-width: 100%; min-height: 297mm; padding: 22mm 20mm; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4); box-sizing: border-box; }
+/* A till receipt is a short document. Held at A4 it would be one third content
+   and two thirds blank paper, which reads as something having failed to load.
+   Narrower, and only as tall as it needs to be. */
+.doc-page--receipt { width: 148mm; min-height: auto; padding: 16mm 14mm; }
 
 @media print {
   body * { visibility: hidden !important; }
   .doc-print-root, .doc-print-root * { visibility: visible !important; }
+  /* The insets belong to the screen, not the paper — a phone's notch must not
+     become a margin on a client's invoice. */
   .doc-overlay { position: static; background: #fff; overflow: visible; padding: 0; }
+  .doc-toolbar { padding: 0; }
   .doc-print-root { padding: 0; display: block; }
   .doc-page { box-shadow: none; width: auto; min-height: auto; padding: 0; }
   .doc-no-print { display: none !important; }
@@ -475,6 +853,84 @@ input:focus, textarea:focus, select:focus {
   .change-due { animation: overlay-in var(--dur-modal) var(--ease-out); }
 }
 
+/* --- Section transitions ---------------------------------------------------
+   Switching sections was an instant swap. The shell routes properly now, so the
+   change deserves a direction — but this is list navigation, done tens of times
+   a day, so it gets the smallest thing that reads as intentional: a 180ms fade
+   with a 6px rise. Anything longer turns a routine move into a wait.
+
+   The animation is restarted by alternating between two identical keyframe
+   sets rather than by remounting. That matters: the sections are deliberately
+   kept mounted so their Radix dialogs survive, and keying this wrapper to
+   `activeTab` would tear all fifteen down on every tab change — the exact
+   focus-restore bug the mounting strategy exists to avoid. Changing
+   `animation-name` re-triggers an animation without touching the tree. */
+.section-swap[data-swap="0"] { animation: section-in-a var(--dur-fast) var(--ease-out); }
+.section-swap[data-swap="1"] { animation: section-in-b var(--dur-fast) var(--ease-out); }
+@keyframes section-in-a { from { opacity: 0; transform: translateY(6px); } }
+@keyframes section-in-b { from { opacity: 0; transform: translateY(6px); } }
+
+/* --- Deal moved between stages ---------------------------------------------
+   The pipeline's most consequential action had no feedback at all: the select
+   changed, a refetch ran, and the card silently existed somewhere else. On a
+   six-column board that is wide enough to scroll, "somewhere else" is often
+   off-screen, so the user's own action left them looking for the thing they
+   just moved.
+
+   The card is keyed by id and its column is its parent, so a move genuinely
+   remounts it — the animation fires on arrival with no extra machinery. Two
+   parts: the card settles in (transform/opacity, compositor-only), and a ring
+   flashes to say *here, this is where it went*. The ring is box-shadow, which
+   repaints — acceptable for one element, once, and there is no compositor-safe
+   way to draw attention to a specific card. */
+.deal-landed {
+  animation: deal-landed var(--dur-modal) var(--ease-out),
+             deal-ring 900ms var(--ease-out);
+}
+@keyframes deal-landed {
+  from { opacity: 0; transform: scale(0.96); }
+}
+@keyframes deal-ring {
+  from { box-shadow: 0 0 0 3px var(--tone-positive-fg); }
+  to   { box-shadow: 0 0 0 6px rgba(0, 0, 0, 0); }
+}
+
+/* --- Status change ---------------------------------------------------------
+   A badge whose tone changes after an approval is the whole outcome of the
+   action, and it used to swap colour between two frames with nothing to catch
+   the eye. Keyed on the status value at the call site, so this replays only
+   when the status actually changes — not on every unrelated re-render. */
+.badge-changed {
+  animation: badge-changed var(--dur-modal) var(--ease-out);
+}
+@keyframes badge-changed {
+  from { transform: scale(1.12); }
+}
+
+/* An empty state arrives in the same commit the skeleton leaves, so without
+   this the pulse simply becomes a sentence. Opacity and a small rise make it
+   land as an answer rather than a swap. */
+.empty {
+  animation: row-in var(--dur-fast) var(--ease-out) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Movement goes; the fade stays, because it is what marks the change as
+     having happened at all. */
+  .section-swap[data-swap="0"] { animation: overlay-in var(--dur-fast) var(--ease-out); }
+  .section-swap[data-swap="1"] { animation: overlay-in var(--dur-fast) var(--ease-out); }
+  .empty { animation: overlay-in var(--dur-fast) var(--ease-out); }
+  /* The ring is the part that carries "it went here", and it neither moves nor
+     scales, so it is the half worth keeping. */
+  .deal-landed { animation: deal-ring 900ms var(--ease-out); }
+  .badge-changed { animation: none; }
+}
+
+/* Sonner ships its own entrance and does not consult the media query itself. */
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toast] { transition: opacity var(--dur-fast) var(--ease-out) !important; }
+}
+
 /* --- Loading skeletons --- */
 /* A placeholder that occupies the row it is standing in for, so the real
    content does not shove the page around when it arrives. The shimmer is
@@ -510,4 +966,64 @@ input:focus, textarea:focus, select:focus {
 .perm-matrix th:first-child, .perm-matrix td:first-child { text-align: left; font-weight: 600; text-transform: capitalize; }
 .perm-matrix input[type="checkbox"] { width: 16px; height: 16px; margin: 0 auto; cursor: pointer; accent-color: #5f7c29; }
 .perm-matrix select { font-size: 11px; padding: 4px 6px; border-radius: 4px; background: #f7f8f3; color: #111512; border: 1px solid #d8dbd1; }
+
+/* --- Badges -----------------------------------------------------------------
+   One badge, ten tones, selected by data-tone. Previously five maps in
+   AdminPage each carried their own {bg, fg} literals, so the same idea wore a
+   different colour depending on which table it appeared in, and there was no
+   way to restyle "everything that means trouble" without visiting all five.
+
+   The tone is a data attribute rather than a class because the callers already
+   compute a string ("positive", "danger") from a status value — a class would
+   just be that string with a prefix glued on in every call site. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: var(--fs-100);
+  font-weight: var(--fw-strong);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  background: var(--tone-neutral-bg);
+  color: var(--tone-neutral-fg);
+}
+.badge[data-tone="positive"] { background: var(--tone-positive-bg); color: var(--tone-positive-fg); }
+.badge[data-tone="active"]   { background: var(--tone-active-bg);   color: var(--tone-active-fg); }
+.badge[data-tone="info"]     { background: var(--tone-info-bg);     color: var(--tone-info-fg); }
+.badge[data-tone="notice"]   { background: var(--tone-notice-bg);   color: var(--tone-notice-fg); }
+.badge[data-tone="danger"]   { background: var(--tone-danger-bg);   color: var(--tone-danger-fg); }
+.badge[data-tone="special"]  { background: var(--tone-special-bg);  color: var(--tone-special-fg); }
+.badge[data-tone="earth"]    { background: var(--tone-earth-bg);    color: var(--tone-earth-fg); }
+.badge[data-tone="slate"]    { background: var(--tone-slate-bg);    color: var(--tone-slate-fg); }
+.badge[data-tone="cool"]     { background: var(--tone-cool-bg);     color: var(--tone-cool-fg); }
+
+/* The pre-existing .status pill is the same object with the green hard-coded.
+   Pointed at the tokens so it moves when they do. */
+.status {
+  background: var(--tone-positive-bg);
+  color: var(--tone-positive-fg) !important;
+  font-size: var(--fs-200);
+  font-weight: var(--fw-heavy);
+}
+
+/* --- Tabular figures --------------------------------------------------------
+   Proportional digits are drawn to different widths, so a column of them
+   shifts as the values change — which reads as carelessness in precisely the
+   place where accuracy is the product. Only the screens built most recently
+   set this, so receivables, the pipeline board and the payment lists wobbled.
+
+   Applied at the workspace and document root rather than to each money field:
+   nearly every number in a back office is data, the cost on the few that are
+   prose is a slightly wider glyph, and the alternative is finding several
+   hundred call sites and missing some. */
+.workspace,
+.doc-page {
+  font-variant-numeric: tabular-nums;
+}
+/* For figures outside those two roots. */
+.num { font-variant-numeric: tabular-nums; }
 

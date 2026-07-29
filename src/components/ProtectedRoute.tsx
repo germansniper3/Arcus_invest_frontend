@@ -23,17 +23,17 @@ function NoAccess({ surface }: { surface: Surface }) {
   const { user, logout } = useAuth();
   return (
     <main className="loading-shell" style={{ flexDirection: 'column', gap: '14px', textAlign: 'center', padding: '24px' }}>
-      <h1 style={{ fontSize: '19px', color: '#111512', margin: 0 }}>No access to this area</h1>
-      <p style={{ fontSize: '14px', color: '#5a625d', margin: 0, maxWidth: '46ch' }}>
+      <h1 style={{ fontSize: 'var(--fs-500)', color: 'var(--ws-fg)', margin: 0 }}>No access to this area</h1>
+      <p style={{ fontSize: 'var(--fs-300)', color: 'var(--ws-fg-muted)', margin: 0, maxWidth: '46ch' }}>
         {user?.full_name ? `${user.full_name}, your` : 'Your'} account does not have permission for the{' '}
         {surface === 'admin' ? 'management area' : 'student portal'}. If this is unexpected, ask an
         administrator to review your role.
       </p>
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-        <Link to="/" style={{ padding: '8px 14px', fontSize: '13px', borderRadius: '6px', background: '#eef0ea', border: '1px solid #dfe1da', color: '#111512', textDecoration: 'none' }}>
+        <Link to="/" style={{ padding: '8px 14px', fontSize: 'var(--fs-300)', borderRadius: '6px', background: 'var(--ws-canvas)', border: '1px solid var(--ws-border)', color: 'var(--ws-fg)', textDecoration: 'none' }}>
           Back to site
         </Link>
-        <button onClick={logout} style={{ padding: '8px 14px', fontSize: '13px', borderRadius: '6px', background: '#fff', border: '1px solid #dfe1da', color: '#111512', cursor: 'pointer' }}>
+        <button onClick={logout} style={{ padding: '8px 14px', fontSize: 'var(--fs-300)', borderRadius: '6px', background: 'var(--ws-panel)', border: '1px solid var(--ws-border)', color: 'var(--ws-fg)', cursor: 'pointer' }}>
           Sign out
         </button>
       </div>
@@ -53,16 +53,16 @@ function CannotReachServer() {
   const { retryConnection, logout } = useAuth();
   return (
     <main className="loading-shell" style={{ flexDirection: 'column', gap: '14px', textAlign: 'center', padding: '24px' }}>
-      <h1 style={{ fontSize: '19px', color: '#111512', margin: 0 }}>Cannot reach the server</h1>
-      <p style={{ fontSize: '14px', color: '#5a625d', margin: 0, maxWidth: '46ch' }}>
+      <h1 style={{ fontSize: 'var(--fs-500)', color: 'var(--ws-fg)', margin: 0 }}>Cannot reach the server</h1>
+      <p style={{ fontSize: 'var(--fs-300)', color: 'var(--ws-fg-muted)', margin: 0, maxWidth: '46ch' }}>
         You are still signed in. The server just did not answer in time. It sleeps when idle, so
         this usually clears on a second attempt.
       </p>
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-        <button onClick={retryConnection} className="primary" style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '6px', cursor: 'pointer' }}>
+        <button onClick={retryConnection} className="primary" style={{ padding: '8px 16px', fontSize: 'var(--fs-300)', borderRadius: '6px', cursor: 'pointer' }}>
           Try again
         </button>
-        <button onClick={logout} style={{ padding: '8px 14px', fontSize: '13px', borderRadius: '6px', background: '#fff', border: '1px solid #dfe1da', color: '#111512', cursor: 'pointer' }}>
+        <button onClick={logout} style={{ padding: '8px 14px', fontSize: 'var(--fs-300)', borderRadius: '6px', background: 'var(--ws-panel)', border: '1px solid var(--ws-border)', color: 'var(--ws-fg)', cursor: 'pointer' }}>
           Sign out
         </button>
       </div>
@@ -79,7 +79,7 @@ export function ProtectedRoute({ children, surface }: { children: ReactNode; sur
       <main className="loading-shell" style={{ flexDirection: 'column', gap: '8px', textAlign: 'center' }}>
         <span>{wakingUp ? 'Waking the server up…' : 'Checking access...'}</span>
         {wakingUp && (
-          <span style={{ fontSize: '13px', color: '#8a908a' }}>
+          <span style={{ fontSize: 'var(--fs-300)', color: 'var(--ws-fg-subtle)' }}>
             It sleeps when idle, so the first request takes a moment.
           </span>
         )}

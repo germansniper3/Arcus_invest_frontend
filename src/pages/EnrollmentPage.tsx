@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { ChatWidget } from '../components/ChatWidget';
 import { Nav } from '../components/Nav';
 import { SmartImage } from '../components/SmartImage';
-import { api } from '../lib/api';
+import { api, errorMessage } from '../lib/api';
 import { arcusImages } from '../lib/assets';
 
 const tiers = [
@@ -35,8 +35,8 @@ export function EnrollmentPage() {
       await api.createEnrollment(form);
       toast.success('Enrollment application submitted successfully!');
       setForm(emptyForm);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to submit enrollment');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to submit enrollment'));
     } finally {
       setSubmitting(false);
     }

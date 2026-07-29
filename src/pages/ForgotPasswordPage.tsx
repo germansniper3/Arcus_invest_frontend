@@ -42,7 +42,7 @@ export function ForgotPasswordPage() {
               <span>Arcus Investments</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-start' }}>
-              <MailCheck size={26} color="#5f7c29" />
+              <MailCheck size={26} color="var(--ws-accent)" />
               <h2>Check your email</h2>
               <p className="sub">
                 If <strong>{email}</strong> has an account, a reset link is on its way. It can be

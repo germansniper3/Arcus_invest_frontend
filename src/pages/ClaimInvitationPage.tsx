@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ShieldCheck, FileText, ArrowRight, Loader } from 'lucide-react';
 import { toast } from 'sonner';
-import { api } from '../lib/api';
+import { api, errorMessage } from '../lib/api';
 import { arcusImages } from '../lib/assets';
 
 export function ClaimInvitationPage() {
@@ -27,8 +27,8 @@ export function ClaimInvitationPage() {
       try {
         const preview = await api.previewInvitation(token);
         setInviteData(preview);
-      } catch (err: any) {
-        toast.error(err.message || 'Invitation is invalid, expired, or already claimed.');
+      } catch (err) {
+        toast.error(errorMessage(err, 'Invitation is invalid, expired, or already claimed.'));
         navigate('/');
       } finally {
         setLoading(false);
@@ -59,8 +59,8 @@ export function ClaimInvitationPage() {
       });
       toast.success('Your student account has been created! Please log in to access your portal.');
       navigate('/login');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to claim invitation.');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to claim invitation.'));
     } finally {
       setSubmitting(false);
     }
@@ -68,7 +68,7 @@ export function ClaimInvitationPage() {
 
   if (loading) {
     return (
-      <div className="loading-shell" style={{ background: '#0b0d0c', color: '#fff' }}>
+      <div className="loading-shell" style={{ background: 'var(--ink)', color: '#fff' }}>
         <Loader className="animate-spin" size={32} style={{ color: 'var(--accent)' }} />
         <p style={{ marginTop: '16px' }}>Validating onboarding invitation...</p>
       </div>

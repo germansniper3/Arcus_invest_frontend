@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { LogOut, Rocket, CheckSquare, Square, MessageSquare, Send, Clock, FileText, CalendarClock, Plus, X, UploadCloud, Download, Lock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, formatFileSize, MAX_SUBMISSION_FILE_SIZE } from '../lib/api';
+import { api, formatFileSize, MAX_SUBMISSION_FILE_SIZE, errorMessage } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { Enrollment, StudentProfile, CapstoneMilestone, CapstoneComment, ProgressReport, ExtensionRequest, Submission } from '../types';
+import { Badge, type Tone } from '../components/Badge';
 
 type Section = 'overview' | 'milestones' | 'discussion' | 'reports' | 'extensions' | 'submissions';
 
@@ -14,6 +15,38 @@ const SUBMISSION_STEPS: { key: string; label: string; desc: string }[] = [
   { key: 'report', label: 'Report', desc: 'Submit your progress / design report.' },
   { key: 'final', label: 'Final', desc: 'Submit your final deliverable.' },
 ];
+
+/**
+ * Status → tone, for the four status pills on this page.
+ *
+ * These were four inline `background: x ? '#e8f2dc' : …` / `color: x ? …`
+ * ternary pairs — the same `Record<string, {bg, fg}>` shape that was removed
+ * from the admin, written out longhand at the call site. That meant "approved",
+ * "reviewed" and "accepted" were the same idea in three places, and the pale
+ * orange of an in-progress milestone was a different orange from a pending
+ * review by one hex digit.
+ *
+ * Named maps with a `?? 'neutral'` fallback rather than exhaustive Records: the
+ * statuses arrive as strings from the API, and an unrecognised one should
+ * render grey rather than crash the portal.
+ */
+const MILESTONE_TONE: Record<string, Tone> = {
+  completed: 'positive',
+  pending_review: 'info',
+  in_progress: 'earth',
+};
+const REPORT_TONE: Record<string, Tone> = {
+  reviewed: 'positive',
+};
+const EXTENSION_TONE: Record<string, Tone> = {
+  approved: 'positive',
+  denied: 'danger',
+};
+const SUBMISSION_TONE: Record<string, Tone> = {
+  accepted: 'positive',
+  revise: 'earth',
+  submitted: 'info',
+};
 
 const SECTION_TITLES: Record<Section, string> = {
   overview: 'Capstone Overview',
@@ -68,8 +101,8 @@ export function StudentPage() {
         title: data.profile?.capstone_title ?? '',
         summary: data.profile?.capstone_summary ?? ''
       });
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to load dashboard');
+    } catch (error) {
+      toast.error(errorMessage(error, 'Failed to load dashboard'));
     }
   }
 
@@ -84,8 +117,8 @@ export function StudentPage() {
       const updated = await api.updateCapstone(form.title, form.summary);
       setProfile(updated);
       toast.success('Capstone brief updated successfully');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update capstone brief');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to update capstone brief'));
     } finally {
       setSavingBrief(false);
     }
@@ -106,8 +139,8 @@ export function StudentPage() {
       // Reload dashboard to update progress percentage
       const data = await api.studentDashboard();
       setProfile(data.profile);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update milestone');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to update milestone'));
     }
   }
 
@@ -120,8 +153,8 @@ export function StudentPage() {
       setComments((prev) => [...prev, created]);
       setNewComment('');
       toast.success('Comment posted');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to post comment');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to post comment'));
     } finally {
       setPostingComment(false);
     }
@@ -164,8 +197,8 @@ export function StudentPage() {
       setPrForm({ period_start: '', period_end: '', accomplishments: [''], challenges: '' });
       const data = await api.studentDashboard();
       setProgressReports(data.progress_reports || []);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to submit progress report');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to submit progress report'));
     } finally {
       setSubmittingReport(false);
     }
@@ -188,8 +221,8 @@ export function StudentPage() {
       setExtForm({ extension_type: 'milestone', requested_deadline: '', reason: '' });
       const data = await api.studentDashboard();
       setExtensions(data.extensions || []);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to submit extension request');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to submit extension request'));
     } finally {
       setSubmittingExtension(false);
     }
@@ -214,8 +247,8 @@ export function StudentPage() {
       setFileKey((k) => k + 1);
       const data = await api.studentDashboard();
       setSubmissions(data.submissions || []);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to upload submission');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to upload submission'));
     } finally {
       setSubmittingFile(false);
       setUploadingKind('');
@@ -226,8 +259,8 @@ export function StudentPage() {
     setDownloadingId(s.id);
     try {
       await api.downloadSubmission(s.id, 'student', s.file_name);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to download file');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to download file'));
     } finally {
       setDownloadingId(null);
     }
@@ -280,7 +313,7 @@ export function StudentPage() {
             <h1>{SECTION_TITLES[activeSection]}</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <span style={{ fontSize: '14px', color: '#5a625d', fontWeight: '800' }}>Overall Progress</span>
+            <span style={{ fontSize: 'var(--fs-300)', color: 'var(--ws-fg-muted)', fontWeight: '800' }}>Overall Progress</span>
             <div className="progress-ring">{profile?.progress_pct ?? 0}%</div>
           </div>
         </div>
@@ -291,45 +324,39 @@ export function StudentPage() {
             <div className="panel" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                 <CheckSquare size={22} style={{ color: 'var(--accent)' }} />
-                <h2 style={{ margin: 0, fontSize: '22px' }}>Your Milestone Checklist</h2>
+                <h2 style={{ margin: 0, fontSize: 'var(--fs-500)' }}>Your Milestone Checklist</h2>
               </div>
-              <p style={{ fontSize: '13px', marginBottom: '20px' }}>Tick a milestone to submit it for mentor review (tick again to withdraw). A mentor signs it off as completed. Signed-off items are locked. Feedback appears under each item.</p>
+              <p style={{ fontSize: 'var(--fs-300)', marginBottom: '20px' }}>Tick a milestone to submit it for mentor review (tick again to withdraw). A mentor signs it off as completed. Signed-off items are locked. Feedback appears under each item.</p>
               
               <div style={{ display: 'grid', gap: '12px' }}>
                 {milestones.length === 0 ? (
-                  <p style={{ color: '#5a625d', fontSize: '14px', padding: '12px', background: '#f7f8f3', borderRadius: '6px', textAlign: 'center' }}>No milestones generated yet.</p>
+                  <p style={{ color: 'var(--ws-fg-muted)', fontSize: 'var(--fs-300)', padding: '12px', background: 'var(--ws-sunken)', borderRadius: '6px', textAlign: 'center' }}>No milestones generated yet.</p>
                 ) : (
                   milestones.map((m) => (
-                    <div key={m.id} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', padding: '16px', background: '#f7f8f3', border: '1px solid #d8dbd1', borderRadius: '8px' }}>
+                    <div key={m.id} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', padding: '16px', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)', borderRadius: '8px' }}>
                       <button 
                         onClick={() => toggleMilestone(m)} 
-                        style={{ background: 'transparent', border: 0, padding: 0, display: 'inline-flex', color: m.status === 'completed' ? 'var(--accent)' : '#5a625d' }}
+                        style={{ background: 'transparent', border: 0, padding: 0, display: 'inline-flex', color: m.status === 'completed' ? 'var(--accent)' : 'var(--ws-fg-muted)' }}
                       >
-                        {m.status === 'completed' ? <CheckSquare size={22} style={{ color: '#5f7c29' }} /> : m.status === 'pending_review' ? <CheckSquare size={22} style={{ color: '#2a5788' }} /> : <Square size={22} />}
+                        {m.status === 'completed' ? <CheckSquare size={22} style={{ color: 'var(--ws-accent)' }} /> : m.status === 'pending_review' ? <CheckSquare size={22} style={{ color: 'var(--tone-info-fg)' }} /> : <Square size={22} />}
                       </button>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'baseline' }}>
-                          <strong style={{ color: '#111512', fontSize: '15px' }}>{m.title}</strong>
-                          <span style={{
-                            fontSize: '11px',
-                            padding: '2px 8px',
-                            borderRadius: '10px',
-                            background: m.status === 'completed' ? '#e8f2dc' : m.status === 'pending_review' ? '#e2ecf8' : m.status === 'in_progress' ? '#fff2e2' : '#f0f0f0',
-                            color: m.status === 'completed' ? '#35520f' : m.status === 'pending_review' ? '#2a5788' : m.status === 'in_progress' ? '#c98745' : '#555',
-                            fontWeight: 'bold',
-                            textTransform: 'uppercase'
-                          }}>{m.status.replace(/_/g, ' ')}</span>
+                          <strong style={{ color: 'var(--ws-fg)', fontSize: 'var(--fs-400)' }}>{m.title}</strong>
+                          <Badge tone={MILESTONE_TONE[m.status] ?? 'neutral'} upper>
+                            {m.status.replace(/_/g, ' ')}
+                          </Badge>
                         </div>
-                        <p style={{ fontSize: '13px', margin: '4px 0 8px', color: '#5a625d' }}>{m.description}</p>
+                        <p style={{ fontSize: 'var(--fs-300)', margin: '4px 0 8px', color: 'var(--ws-fg-muted)' }}>{m.description}</p>
                         
                         {m.feedback && (
-                          <div style={{ background: '#fff', borderLeft: '3px solid var(--copper)', padding: '8px 12px', borderRadius: '0 4px 4px 0', fontSize: '12px', color: '#c98745', marginTop: '6px' }}>
+                          <div style={{ background: 'var(--ws-panel)', borderLeft: '3px solid var(--copper)', padding: '8px 12px', borderRadius: '0 4px 4px 0', fontSize: 'var(--fs-200)', color: 'var(--copper)', marginTop: '6px' }}>
                             <strong>Admissions Review Feedback:</strong> {m.feedback}
                           </div>
                         )}
                         
                         {m.completed_at && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#5a625d', marginTop: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--fs-100)', color: 'var(--ws-fg-muted)', marginTop: '6px' }}>
                             <Clock size={12} /> Completed on {new Date(m.completed_at).toLocaleDateString()}
                           </div>
                         )}
@@ -348,24 +375,24 @@ export function StudentPage() {
             <div className="panel" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                 <MessageSquare size={22} style={{ color: 'var(--accent)' }} />
-                <h2 style={{ margin: 0, fontSize: '22px' }}>Discussion & Updates</h2>
+                <h2 style={{ margin: 0, fontSize: 'var(--fs-500)' }}>Discussion & Updates</h2>
               </div>
-              <p style={{ fontSize: '13px', marginBottom: '20px' }}>Post updates, ask questions or address feedback. Admissions and coordinators will reply here.</p>
+              <p style={{ fontSize: 'var(--fs-300)', marginBottom: '20px' }}>Post updates, ask questions or address feedback. Admissions and coordinators will reply here.</p>
 
               <div style={{ display: 'grid', gap: '12px', maxHeight: '300px', overflowY: 'auto', marginBottom: '20px', paddingRight: '4px' }}>
                 {comments.length === 0 ? (
-                  <p style={{ color: '#5a625d', fontSize: '13px', textAlign: 'center', padding: '12px' }}>No messages posted yet. Start the conversation!</p>
+                  <p style={{ color: 'var(--ws-fg-muted)', fontSize: 'var(--fs-300)', textAlign: 'center', padding: '12px' }}>No messages posted yet. Start the conversation!</p>
                 ) : (
                   comments.map((c) => (
-                    <div key={c.id} style={{ padding: '12px 14px', background: '#f7f8f3', borderRadius: '8px', border: '1px solid #d8dbd1' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '6px', fontSize: '12px' }}>
+                    <div key={c.id} style={{ padding: '12px 14px', background: 'var(--ws-sunken)', borderRadius: '8px', border: '1px solid var(--ws-border-strong)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '6px', fontSize: 'var(--fs-200)' }}>
                         <div>
-                          <strong style={{ color: '#111512' }}>{c.author_name}</strong>
-                          <span style={{ color: '#5a625d', marginLeft: '6px', fontSize: '11px', background: '#eef0ea', padding: '2px 6px', borderRadius: '4px' }}>{c.author_role.replace('_', ' ')}</span>
+                          <strong style={{ color: 'var(--ws-fg)' }}>{c.author_name}</strong>
+                          <span style={{ color: 'var(--ws-fg-muted)', marginLeft: '6px', fontSize: 'var(--fs-100)', background: 'var(--ws-canvas)', padding: '2px 6px', borderRadius: '4px' }}>{c.author_role.replace('_', ' ')}</span>
                         </div>
-                        <span style={{ color: '#8a908a' }}>{new Date(c.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>
+                        <span style={{ color: 'var(--ws-fg-subtle)' }}>{new Date(c.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>
                       </div>
-                      <p style={{ margin: 0, fontSize: '13px', color: '#2d3330', whiteSpace: 'pre-line', lineHeight: '1.5' }}>{c.message}</p>
+                      <p style={{ margin: 0, fontSize: 'var(--fs-300)', color: 'var(--ws-fg)', whiteSpace: 'pre-line', lineHeight: '1.5' }}>{c.message}</p>
                     </div>
                   ))
                 )}
@@ -377,7 +404,7 @@ export function StudentPage() {
                   placeholder="Post a progress update or question..." 
                   value={newComment} 
                   onChange={(e) => setNewComment(e.target.value)} 
-                  style={{ flex: 1, minHeight: '44px', color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
+                  style={{ flex: 1, minHeight: '44px', color: 'var(--ws-fg)', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)' }}
                 />
                 <button type="submit" disabled={postingComment} className="primary" style={{ width: '44px', minHeight: '44px', padding: 0 }}>
                   <Send size={16} />
@@ -393,20 +420,20 @@ export function StudentPage() {
             <article className="panel" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                 <Rocket size={22} style={{ color: 'var(--accent)' }} />
-                <h2 style={{ margin: 0, fontSize: '22px' }}>Capstone Brief</h2>
+                <h2 style={{ margin: 0, fontSize: 'var(--fs-500)' }}>Capstone Brief</h2>
               </div>
-              <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '10px', color: '#111512' }}>
+              <h3 style={{ fontSize: 'var(--fs-500)', fontWeight: '800', marginBottom: '10px', color: 'var(--ws-fg)' }}>
                 {profile?.capstone_title || 'Capstone not named yet'}
               </h3>
-              <p style={{ fontSize: '14px', lineHeight: '1.6', color: '#5a625d', whiteSpace: 'pre-line' }}>
+              <p style={{ fontSize: 'var(--fs-300)', lineHeight: '1.6', color: 'var(--ws-fg-muted)', whiteSpace: 'pre-line' }}>
                 {profile?.capstone_summary || enrollment?.project_idea || 'No project summary set. Use the editor below to describe what you are building.'}
               </p>
             </article>
 
             {/* Capstone Brief Form Panel */}
             <form className="panel capstone-form" onSubmit={submitBrief} style={{ padding: '24px' }}>
-              <h2 style={{ fontSize: '20px', marginBottom: '4px' }}>Edit Project Details</h2>
-              <p style={{ fontSize: '12px', color: '#5a625d', marginBottom: '16px' }}>Refine your capstone title and build scope at any time.</p>
+              <h2 style={{ fontSize: 'var(--fs-500)', marginBottom: '4px' }}>Edit Project Details</h2>
+              <p style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', marginBottom: '16px' }}>Refine your capstone title and build scope at any time.</p>
               
               <div style={{ display: 'grid', gap: '12px' }}>
                 <input 
@@ -436,36 +463,36 @@ export function StudentPage() {
           <div className="panel" style={{ padding: '24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
               <FileText size={22} style={{ color: 'var(--accent)' }} />
-              <h2 style={{ margin: 0, fontSize: '22px' }}>Progress Reports</h2>
+              <h2 style={{ margin: 0, fontSize: 'var(--fs-500)' }}>Progress Reports</h2>
             </div>
-            <p style={{ fontSize: '13px', marginBottom: '20px' }}>Submit periodic progress reports covering what you accomplished and any challenges. Your mentor will review and leave feedback.</p>
+            <p style={{ fontSize: 'var(--fs-300)', marginBottom: '20px' }}>Submit periodic progress reports covering what you accomplished and any challenges. Your mentor will review and leave feedback.</p>
 
             <form onSubmit={submitProgressReport} style={{ display: 'grid', gap: '12px', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--line)' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '12px', color: '#5a625d', display: 'block', marginBottom: '4px' }}>Period Start</label>
+                  <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', display: 'block', marginBottom: '4px' }}>Period Start</label>
                   <input
                     required
                     type="date"
                     value={prForm.period_start}
                     onChange={(e) => setPrForm({ ...prForm, period_start: e.target.value })}
-                    style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
+                    style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)' }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', color: '#5a625d', display: 'block', marginBottom: '4px' }}>Period End</label>
+                  <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', display: 'block', marginBottom: '4px' }}>Period End</label>
                   <input
                     required
                     type="date"
                     value={prForm.period_end}
                     onChange={(e) => setPrForm({ ...prForm, period_end: e.target.value })}
-                    style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
+                    style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)' }}
                   />
                 </div>
               </div>
 
               <div>
-                <label style={{ fontSize: '12px', color: '#5a625d', display: 'block', marginBottom: '4px' }}>Accomplishments</label>
+                <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', display: 'block', marginBottom: '4px' }}>Accomplishments</label>
                 <div style={{ display: 'grid', gap: '8px' }}>
                   {prForm.accomplishments.map((line, i) => (
                     <div key={i} style={{ display: 'flex', gap: '6px' }}>
@@ -473,13 +500,13 @@ export function StudentPage() {
                         placeholder={`Accomplishment ${i + 1}`}
                         value={line}
                         onChange={(e) => updateAccomplishmentLine(i, e.target.value)}
-                        style={{ flex: 1, color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
+                        style={{ flex: 1, color: 'var(--ws-fg)', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)' }}
                       />
                       {prForm.accomplishments.length > 1 && (
                         <button
                           type="button"
                           onClick={() => removeAccomplishmentLine(i)}
-                          style={{ background: '#eef0ea', border: 0, borderRadius: '4px', padding: '0 10px', cursor: 'pointer', color: '#5a625d' }}
+                          style={{ background: 'var(--ws-canvas)', border: 0, borderRadius: '4px', padding: '0 10px', cursor: 'pointer', color: 'var(--ws-fg-muted)' }}
                         >
                           <X size={14} />
                         </button>
@@ -489,7 +516,7 @@ export function StudentPage() {
                   <button
                     type="button"
                     onClick={addAccomplishmentLine}
-                    style={{ background: 'transparent', border: '1px dashed #d8dbd1', borderRadius: '4px', padding: '6px 10px', fontSize: '12px', color: '#5a625d', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', width: 'fit-content' }}
+                    style={{ background: 'transparent', border: '1px dashed var(--ws-border-strong)', borderRadius: '4px', padding: '6px 10px', fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', width: 'fit-content' }}
                   >
                     <Plus size={12} /> Add another
                   </button>
@@ -497,12 +524,12 @@ export function StudentPage() {
               </div>
 
               <div>
-                <label style={{ fontSize: '12px', color: '#5a625d', display: 'block', marginBottom: '4px' }}>Challenges (optional)</label>
+                <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', display: 'block', marginBottom: '4px' }}>Challenges (optional)</label>
                 <textarea
                   placeholder="Any blockers, risks, or challenges you're facing..."
                   value={prForm.challenges}
                   onChange={(e) => setPrForm({ ...prForm, challenges: e.target.value })}
-                  style={{ minHeight: '70px', color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
+                  style={{ minHeight: '70px', color: 'var(--ws-fg)', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)' }}
                 />
               </div>
 
@@ -513,34 +540,26 @@ export function StudentPage() {
 
             <div style={{ display: 'grid', gap: '12px', maxHeight: '360px', overflowY: 'auto', paddingRight: '4px' }}>
               {progressReports.length === 0 ? (
-                <p style={{ color: '#5a625d', fontSize: '14px', padding: '12px', background: '#f7f8f3', borderRadius: '6px', textAlign: 'center' }}>No progress reports submitted yet.</p>
+                <p style={{ color: 'var(--ws-fg-muted)', fontSize: 'var(--fs-300)', padding: '12px', background: 'var(--ws-sunken)', borderRadius: '6px', textAlign: 'center' }}>No progress reports submitted yet.</p>
               ) : (
                 progressReports.map((r) => (
-                  <div key={r.id} style={{ padding: '14px 16px', background: '#f7f8f3', border: '1px solid #d8dbd1', borderRadius: '8px' }}>
+                  <div key={r.id} style={{ padding: '14px 16px', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)', borderRadius: '8px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'baseline', marginBottom: '8px' }}>
-                      <strong style={{ color: '#111512', fontSize: '13px' }}>
+                      <strong style={{ color: 'var(--ws-fg)', fontSize: 'var(--fs-300)' }}>
                         {new Date(r.period_start).toLocaleDateString()} &ndash; {new Date(r.period_end).toLocaleDateString()}
                       </strong>
-                      <span style={{
-                        fontSize: '11px',
-                        padding: '2px 8px',
-                        borderRadius: '10px',
-                        background: r.status === 'reviewed' ? '#e8f2dc' : '#fff2e2',
-                        color: r.status === 'reviewed' ? '#35520f' : '#c98745',
-                        fontWeight: 'bold',
-                        textTransform: 'uppercase'
-                      }}>{r.status}</span>
+                      <Badge tone={REPORT_TONE[r.status] ?? 'earth'} upper>{r.status}</Badge>
                     </div>
-                    <ul style={{ margin: '0 0 8px', paddingLeft: '18px', fontSize: '13px', color: '#2d3330' }}>
+                    <ul style={{ margin: '0 0 8px', paddingLeft: '18px', fontSize: 'var(--fs-300)', color: 'var(--ws-fg)' }}>
                       {r.accomplishments.split('\n').filter(Boolean).map((line, i) => (
                         <li key={i}>{line}</li>
                       ))}
                     </ul>
                     {r.challenges && (
-                      <p style={{ fontSize: '12px', color: '#5a625d', margin: '0 0 8px', whiteSpace: 'pre-line' }}><strong>Challenges:</strong> {r.challenges}</p>
+                      <p style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', margin: '0 0 8px', whiteSpace: 'pre-line' }}><strong>Challenges:</strong> {r.challenges}</p>
                     )}
                     {r.supervisor_feedback && (
-                      <div style={{ background: '#fff', borderLeft: '3px solid var(--copper)', padding: '8px 12px', borderRadius: '0 4px 4px 0', fontSize: '12px', color: '#c98745' }}>
+                      <div style={{ background: 'var(--ws-panel)', borderLeft: '3px solid var(--copper)', padding: '8px 12px', borderRadius: '0 4px 4px 0', fontSize: 'var(--fs-200)', color: 'var(--copper)' }}>
                         <strong>Mentor Feedback:</strong> {r.supervisor_feedback}
                       </div>
                     )}
@@ -558,17 +577,17 @@ export function StudentPage() {
           <div className="panel" style={{ padding: '24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
               <CalendarClock size={22} style={{ color: 'var(--accent)' }} />
-              <h2 style={{ margin: 0, fontSize: '22px' }}>Extension Requests</h2>
+              <h2 style={{ margin: 0, fontSize: 'var(--fs-500)' }}>Extension Requests</h2>
             </div>
-            <p style={{ fontSize: '13px', marginBottom: '20px' }}>Request a deadline extension for a milestone, your final submission, or an assessment.</p>
+            <p style={{ fontSize: 'var(--fs-300)', marginBottom: '20px' }}>Request a deadline extension for a milestone, your final submission, or an assessment.</p>
 
             <form onSubmit={submitExtensionRequest} style={{ display: 'grid', gap: '12px', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--line)' }}>
               <div>
-                <label style={{ fontSize: '12px', color: '#5a625d', display: 'block', marginBottom: '4px' }}>Extension For</label>
+                <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', display: 'block', marginBottom: '4px' }}>Extension For</label>
                 <select
                   value={extForm.extension_type}
                   onChange={(e) => setExtForm({ ...extForm, extension_type: e.target.value })}
-                  style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
+                  style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)' }}
                 >
                   <option value="milestone">Milestone</option>
                   <option value="final_submission">Final Submission</option>
@@ -576,23 +595,23 @@ export function StudentPage() {
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: '12px', color: '#5a625d', display: 'block', marginBottom: '4px' }}>Requested New Deadline</label>
+                <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', display: 'block', marginBottom: '4px' }}>Requested New Deadline</label>
                 <input
                   required
                   type="date"
                   value={extForm.requested_deadline}
                   onChange={(e) => setExtForm({ ...extForm, requested_deadline: e.target.value })}
-                  style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
+                  style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)' }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: '12px', color: '#5a625d', display: 'block', marginBottom: '4px' }}>Reason</label>
+                <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', display: 'block', marginBottom: '4px' }}>Reason</label>
                 <textarea
                   required
                   placeholder="Explain why you need more time..."
                   value={extForm.reason}
                   onChange={(e) => setExtForm({ ...extForm, reason: e.target.value })}
-                  style={{ minHeight: '70px', color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
+                  style={{ minHeight: '70px', color: 'var(--ws-fg)', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)' }}
                 />
               </div>
               <button type="submit" disabled={submittingExtension} className="primary" style={{ width: '100%', minHeight: '40px' }}>
@@ -602,28 +621,20 @@ export function StudentPage() {
 
             <div style={{ display: 'grid', gap: '12px', maxHeight: '360px', overflowY: 'auto', paddingRight: '4px' }}>
               {extensions.length === 0 ? (
-                <p style={{ color: '#5a625d', fontSize: '14px', padding: '12px', background: '#f7f8f3', borderRadius: '6px', textAlign: 'center' }}>No extension requests submitted yet.</p>
+                <p style={{ color: 'var(--ws-fg-muted)', fontSize: 'var(--fs-300)', padding: '12px', background: 'var(--ws-sunken)', borderRadius: '6px', textAlign: 'center' }}>No extension requests submitted yet.</p>
               ) : (
                 extensions.map((ext) => (
-                  <div key={ext.id} style={{ padding: '14px 16px', background: '#f7f8f3', border: '1px solid #d8dbd1', borderRadius: '8px' }}>
+                  <div key={ext.id} style={{ padding: '14px 16px', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)', borderRadius: '8px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'baseline', marginBottom: '8px' }}>
-                      <strong style={{ color: '#111512', fontSize: '13px', textTransform: 'capitalize' }}>{ext.extension_type.replace(/_/g, ' ')}</strong>
-                      <span style={{
-                        fontSize: '11px',
-                        padding: '2px 8px',
-                        borderRadius: '10px',
-                        background: ext.status === 'approved' ? '#e8f2dc' : ext.status === 'denied' ? '#ffe2e2' : '#fff2e2',
-                        color: ext.status === 'approved' ? '#35520f' : ext.status === 'denied' ? '#a00' : '#c98745',
-                        fontWeight: 'bold',
-                        textTransform: 'uppercase'
-                      }}>{ext.status}</span>
+                      <strong style={{ color: 'var(--ws-fg)', fontSize: 'var(--fs-300)', textTransform: 'capitalize' }}>{ext.extension_type.replace(/_/g, ' ')}</strong>
+                      <Badge tone={EXTENSION_TONE[ext.status] ?? 'earth'} upper>{ext.status}</Badge>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#5a625d', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', marginBottom: '6px' }}>
                       <Clock size={12} /> Requested new deadline: {new Date(ext.requested_deadline).toLocaleDateString()}
                     </div>
-                    <p style={{ fontSize: '13px', margin: '0 0 8px', color: '#2d3330', whiteSpace: 'pre-line' }}>{ext.reason}</p>
+                    <p style={{ fontSize: 'var(--fs-300)', margin: '0 0 8px', color: 'var(--ws-fg)', whiteSpace: 'pre-line' }}>{ext.reason}</p>
                     {ext.decision_note && (
-                      <div style={{ background: '#fff', borderLeft: '3px solid var(--copper)', padding: '8px 12px', borderRadius: '0 4px 4px 0', fontSize: '12px', color: '#c98745' }}>
+                      <div style={{ background: 'var(--ws-panel)', borderLeft: '3px solid var(--copper)', padding: '8px 12px', borderRadius: '0 4px 4px 0', fontSize: 'var(--fs-200)', color: 'var(--copper)' }}>
                         <strong>Decision Note:</strong> {ext.decision_note}
                       </div>
                     )}
@@ -640,9 +651,9 @@ export function StudentPage() {
             <div className="panel" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                 <UploadCloud size={22} style={{ color: 'var(--accent)' }} />
-                <h2 style={{ margin: 0, fontSize: '22px' }}>Submission Pipeline</h2>
+                <h2 style={{ margin: 0, fontSize: 'var(--fs-500)' }}>Submission Pipeline</h2>
               </div>
-              <p style={{ fontSize: '13px', marginBottom: '20px' }}>Work through the steps in order. Each step unlocks only after a mentor approves the previous one. Max file size 15 MB.</p>
+              <p style={{ fontSize: 'var(--fs-300)', marginBottom: '20px' }}>Work through the steps in order. Each step unlocks only after a mentor approves the previous one. Max file size 15 MB.</p>
 
               <div style={{ display: 'grid', gap: '14px' }}>
                 {(SUBMISSION_STEPS).map((step, i) => {
@@ -656,47 +667,45 @@ export function StudentPage() {
                   // `state` below carries the same three cases, so the separate
                   // `active` boolean it replaced was dead.
                   const state: 'done' | 'active' | 'locked' = accepted ? 'done' : unlocked ? 'active' : 'locked';
-                  const accent = state === 'done' ? '#5f7c29' : state === 'active' ? '#2a5788' : '#b0b4ab';
+                  const accent = state === 'done' ? 'var(--ws-accent)' : state === 'active' ? 'var(--tone-info-fg)' : 'var(--ws-fg-faint)';
 
                   return (
-                    <div key={step.key} style={{ border: `1px solid ${state === 'locked' ? '#e2e4dd' : '#d8dbd1'}`, borderLeft: `4px solid ${accent}`, borderRadius: '8px', padding: '16px 18px', background: state === 'locked' ? '#f3f4f0' : '#fff', opacity: state === 'locked' ? 0.75 : 1 }}>
+                    <div key={step.key} style={{ border: `1px solid ${state === 'locked' ? 'var(--ws-border)' : 'var(--ws-border-strong)'}`, borderLeft: `4px solid ${accent}`, borderRadius: '8px', padding: '16px 18px', background: state === 'locked' ? 'var(--ws-sunken)' : 'var(--ws-panel)', opacity: state === 'locked' ? 0.75 : 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', display: 'grid', placeItems: 'center', background: state === 'done' ? '#e8f2dc' : state === 'active' ? '#e2ecf8' : '#e7e9e3', color: accent, flexShrink: 0 }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', display: 'grid', placeItems: 'center', background: state === 'done' ? 'var(--tone-positive-bg)' : state === 'active' ? 'var(--tone-info-bg)' : 'var(--ws-border)', color: accent, flexShrink: 0 }}>
                           {state === 'done' ? <CheckCircle2 size={17} /> : state === 'locked' ? <Lock size={15} /> : i + 1}
                         </div>
-                        <strong style={{ color: '#111512', fontSize: '16px' }}>Step {i + 1}: {step.label}</strong>
+                        <strong style={{ color: 'var(--ws-fg)', fontSize: 'var(--fs-400)' }}>Step {i + 1}: {step.label}</strong>
                         {latest && (
-                          <span style={{
-                            marginLeft: 'auto', fontSize: '11px', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold', textTransform: 'uppercase',
-                            background: latest.status === 'accepted' ? '#e8f2dc' : latest.status === 'revise' ? '#fff2e2' : '#e2ecf8',
-                            color: latest.status === 'accepted' ? '#35520f' : latest.status === 'revise' ? '#c98745' : '#2a5788',
-                          }}>{latest.status === 'submitted' ? 'awaiting review' : latest.status}</span>
+                          <Badge tone={SUBMISSION_TONE[latest.status] ?? 'info'} upper style={{ marginLeft: 'auto' }}>
+                            {latest.status === 'submitted' ? 'awaiting review' : latest.status}
+                          </Badge>
                         )}
                       </div>
-                      <p style={{ fontSize: '13px', color: '#5a625d', margin: '0 0 12px', paddingLeft: '38px' }}>{step.desc}</p>
+                      <p style={{ fontSize: 'var(--fs-300)', color: 'var(--ws-fg-muted)', margin: '0 0 12px', paddingLeft: '38px' }}>{step.desc}</p>
 
                       <div style={{ paddingLeft: '38px' }}>
                         {state === 'locked' && (
-                          <p style={{ fontSize: '12px', color: '#8a908a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <p style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-subtle)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <Lock size={12} /> Unlocks after Step {i} ({SUBMISSION_STEPS[i - 1].label}) is approved.
                           </p>
                         )}
 
                         {latest && (
-                          <div style={{ background: '#f7f8f3', border: '1px solid #e2e4dd', borderRadius: '6px', padding: '10px 12px', marginBottom: state === 'active' ? '12px' : 0 }}>
-                            <div style={{ fontSize: '12px', color: '#5a625d', display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                          <div style={{ background: 'var(--ws-sunken)', border: '1px solid var(--ws-border)', borderRadius: '6px', padding: '10px 12px', marginBottom: state === 'active' ? '12px' : 0 }}>
+                            <div style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
                               <span>{latest.file_name}</span>
                               <span>{formatFileSize(latest.size)}</span>
                             </div>
                             {latest.review_note && (
-                              <div style={{ background: '#fff', borderLeft: '3px solid var(--copper)', padding: '8px 12px', borderRadius: '0 4px 4px 0', fontSize: '12px', color: '#c98745', marginBottom: '8px' }}>
+                              <div style={{ background: 'var(--ws-panel)', borderLeft: '3px solid var(--copper)', padding: '8px 12px', borderRadius: '0 4px 4px 0', fontSize: 'var(--fs-200)', color: 'var(--copper)', marginBottom: '8px' }}>
                                 <strong>Mentor Note:</strong> {latest.review_note}
                               </div>
                             )}
                             <button
                               onClick={() => handleDownloadSubmission(latest)}
                               disabled={downloadingId === latest.id}
-                              style={{ background: '#eef0ea', color: '#111512', minHeight: '30px', fontSize: '12px', padding: '0 12px', borderRadius: '4px', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                              style={{ background: 'var(--ws-canvas)', color: 'var(--ws-fg)', minHeight: '30px', fontSize: 'var(--fs-200)', padding: '0 12px', borderRadius: '4px', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                             >
                               <Download size={13} /> {downloadingId === latest.id ? 'Downloading...' : 'Download'}
                             </button>
@@ -706,20 +715,20 @@ export function StudentPage() {
                         {state === 'active' && (
                           <form onSubmit={(e) => submitStep(e, step.key, step.label)} style={{ display: 'grid', gap: '10px', marginTop: latest ? '4px' : 0 }}>
                             {latest && latest.status === 'revise' && (
-                              <p style={{ fontSize: '12px', color: '#c98745', margin: 0 }}>Revision requested. Upload an updated file below.</p>
+                              <p style={{ fontSize: 'var(--fs-200)', color: 'var(--copper)', margin: 0 }}>Revision requested. Upload an updated file below.</p>
                             )}
                             <input
                               placeholder={`Title (optional, defaults to "${step.label}")`}
                               value={subForm.title}
                               onChange={(e) => setSubForm({ ...subForm, title: e.target.value })}
-                              style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1' }}
+                              style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)' }}
                             />
                             <input
                               key={fileKey}
                               required
                               type="file"
                               onChange={(e) => setSubForm({ ...subForm, file: e.target.files?.[0] ?? null })}
-                              style={{ color: '#111512', background: '#f7f8f3', border: '1px solid #d8dbd1', padding: '8px' }}
+                              style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)', border: '1px solid var(--ws-border-strong)', padding: '8px' }}
                             />
                             <button type="submit" disabled={submittingFile} className="primary" style={{ width: '100%', minHeight: '40px' }}>
                               {submittingFile && uploadingKind === step.key ? 'Uploading...' : latest ? `Re-upload ${step.label}` : `Submit ${step.label}`}

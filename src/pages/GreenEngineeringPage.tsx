@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, MapPin, Users, ArrowLeft, Send } from 'lucide-react';
 import { toast } from 'sonner';
-import { api } from '../lib/api';
+import { api, errorMessage } from '../lib/api';
 import { Nav } from '../components/Nav';
 import { ChatWidget } from '../components/ChatWidget';
 
@@ -31,8 +31,8 @@ export function GreenEngineeringPage() {
       try {
         const data = await api.listPublicEvents();
         setEvents(data);
-      } catch (err: any) {
-        toast.error('Failed to load events: ' + err.message);
+      } catch (err) {
+        toast.error('Failed to load events: ' + errorMessage(err, 'the server did not say why'));
       } finally {
         setLoading(false);
       }
@@ -46,7 +46,7 @@ export function GreenEngineeringPage() {
     try {
       const data = await api.getPublicEvent(event.slug);
       setResCount(data.reservations_count);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
     }
   }
@@ -67,8 +67,8 @@ export function GreenEngineeringPage() {
       const data = await api.getPublicEvent(selectedEvent.slug);
       setResCount(data.reservations_count);
       setResForm({ fullName: '', email: '', phone: '', notes: '' });
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to reserve seat');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to reserve seat'));
     } finally {
       setSubmitting(false);
     }

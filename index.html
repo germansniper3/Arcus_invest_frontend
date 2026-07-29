@@ -2,7 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      viewport-fit=cover lets the page paint into the Dynamic Island / home
+      indicator regions; env(safe-area-inset-*) in styles.css then keeps the
+      actual content out of them. Without cover, env() resolves to 0 and the
+      insets below are dead code.
+
+      Deliberately no maximum-scale / user-scalable=no: that is the usual
+      "fix" for iOS focus zoom and it disables pinch-zoom for everyone,
+      including users who need it. The zoom is fixed by giving controls a
+      16px font-size at <=620px instead.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="Arcus Investments engineering, manufacturing, and innovation hub platform." />
     <title>Arcus Investments</title>
   </head>

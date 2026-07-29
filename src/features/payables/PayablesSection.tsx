@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Plus, Download, Trash2, Edit2, Wallet, ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, isApprovalBlocked, type ExpenseInput } from '../../lib/api';
+import { api, isApprovalBlocked, type ExpenseInput, errorMessage } from '../../lib/api';
 import { useCan } from '../../lib/permissions';
 import type { Expense, ExpenseCategory, VatTreatment, PayablesReport, CashPosition } from '../../types';
 import { Modal } from '../../components/Modal';
 import { NumberField } from '../../components/NumberField';
 import { SectionAction } from '../../components/SectionAction';
 import { Loadable } from '../../components/Loadable';
+import { useRefreshSignal } from '../../lib/refresh';
 
 const ZMW = (n: number) => `${Math.round(n).toLocaleString()} ZMW`;
 
@@ -89,16 +90,20 @@ export function PayablesSection({ active }: Props) {
       setExpenses(nextExpenses.items);
       setReport(nextReport);
       setPosition(nextPosition);
-    } catch (err: any) {
-      toast.error(err.message || 'Could not load the supplier ledger');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Could not load the supplier ledger'));
     } finally {
       setLoading(false);
     }
   }
 
+  const refresh = useRefreshSignal();
+
   useEffect(() => {
     if (active) load();
-  }, [active]);
+    // `refresh` is the rail's Refresh Data signal — see lib/refresh. The
+    // `active` guard means a bump refetches only the visible section.
+  }, [active, refresh]);
 
   function openCreate() {
     setEditingId('');
@@ -143,11 +148,11 @@ export function PayablesSection({ active }: Props) {
       }
       setShowForm(false);
       load();
-    } catch (err: any) {
+    } catch (err) {
       // A blocked action is not a failure — it is the approval gate doing its
       // job, and the server's message names who has to decide.
       if (isApprovalBlocked(err)) toast.warning(err.message);
-      else toast.error(err.message || 'Could not save the supplier invoice');
+      else toast.error(errorMessage(err, 'Could not save the supplier invoice'));
     } finally {
       setSaving(false);
     }
@@ -159,8 +164,8 @@ export function PayablesSection({ active }: Props) {
       await api.adminDeleteExpense(e.id);
       toast.success('Supplier invoice deleted');
       load();
-    } catch (err: any) {
-      toast.error(err.message || 'Could not delete the supplier invoice');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Could not delete the supplier invoice'));
     }
   }
 
@@ -178,9 +183,9 @@ export function PayablesSection({ active }: Props) {
       toast.success('Payment recorded');
       setSettling(null);
       load();
-    } catch (err: any) {
+    } catch (err) {
       if (isApprovalBlocked(err)) toast.warning(err.message);
-      else toast.error(err.message || 'Could not record the payment');
+      else toast.error(errorMessage(err, 'Could not record the payment'));
     } finally {
       setRecording(false);
     }
@@ -205,15 +210,15 @@ export function PayablesSection({ active }: Props) {
           {position && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
               <article className="panel">
-                <span style={{ display: 'block', fontSize: '26px', fontWeight: 900 }}>{ZMW(position.owed_to_us)}</span>
+                <span style={{ display: 'block', fontSize: 'var(--fs-600)', fontWeight: 900 }}>{ZMW(position.owed_to_us)}</span>
                 <p style={{ margin: '4px 0 0' }}>Clients owe us</p>
               </article>
               <article className="panel">
-                <span style={{ display: 'block', fontSize: '26px', fontWeight: 900, color: '#a00' }}>{ZMW(position.owed_by_us)}</span>
+                <span style={{ display: 'block', fontSize: 'var(--fs-600)', fontWeight: 900, color: 'var(--tone-danger-fg)' }}>{ZMW(position.owed_by_us)}</span>
                 <p style={{ margin: '4px 0 0' }}>We owe suppliers</p>
               </article>
               <article className="panel">
-                <span style={{ display: 'block', fontSize: '26px', fontWeight: 900, color: position.net >= 0 ? '#5f7c29' : '#a00' }}>
+                <span style={{ display: 'block', fontSize: 'var(--fs-600)', fontWeight: 900, color: position.net >= 0 ? 'var(--ws-accent)' : 'var(--tone-danger-fg)' }}>
                   {ZMW(position.net)}
                 </span>
                 <p style={{ margin: '4px 0 0' }}>Net position</p>
@@ -226,20 +231,20 @@ export function PayablesSection({ active }: Props) {
               all input VAT returns. */}
           {position && (position.recoverable_input_vat > 0 || position.irrecoverable_input_vat > 0) && (
             <article className="panel" style={{ display: 'grid', gap: '12px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px' }}>Input VAT</h3>
+              <h3 style={{ margin: 0, fontSize: 'var(--fs-400)' }}>Input VAT</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                  <ShieldCheck size={18} style={{ color: '#5f7c29', flexShrink: 0, marginTop: '2px' }} />
+                  <ShieldCheck size={18} style={{ color: 'var(--ws-accent)', flexShrink: 0, marginTop: '2px' }} />
                   <div>
-                    <strong style={{ fontSize: '18px', display: 'block' }}>{ZMW(position.recoverable_input_vat)}</strong>
-                    <span style={{ fontSize: '12px', color: '#5a625d' }}>Claimable. Backed by a Smart Invoice.</span>
+                    <strong style={{ fontSize: 'var(--fs-500)', display: 'block' }}>{ZMW(position.recoverable_input_vat)}</strong>
+                    <span style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Claimable. Backed by a Smart Invoice.</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                  <AlertTriangle size={18} style={{ color: '#c98745', flexShrink: 0, marginTop: '2px' }} />
+                  <AlertTriangle size={18} style={{ color: 'var(--copper)', flexShrink: 0, marginTop: '2px' }} />
                   <div>
-                    <strong style={{ fontSize: '18px', display: 'block' }}>{ZMW(position.irrecoverable_input_vat)}</strong>
-                    <span style={{ fontSize: '12px', color: '#5a625d' }}>
+                    <strong style={{ fontSize: 'var(--fs-500)', display: 'block' }}>{ZMW(position.irrecoverable_input_vat)}</strong>
+                    <span style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>
                       A cost, not a claim. No Smart Invoice reference was recorded.
                     </span>
                   </div>
@@ -252,16 +257,16 @@ export function PayablesSection({ active }: Props) {
           <section className="data-section" style={{ marginTop: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <h2 style={{ margin: 0 }}>What we owe</h2>
-              <button onClick={() => api.exportPayablesCSV()} style={{ background: '#eef0ea', color: '#111512', border: 0, borderRadius: '6px', minHeight: '36px', padding: '0 12px', fontSize: '12px' }}>
+              <button onClick={() => api.exportPayablesCSV()} style={{ background: 'var(--ws-canvas)', color: 'var(--ws-fg)', border: 0, borderRadius: '6px', minHeight: '36px', padding: '0 12px', fontSize: 'var(--fs-200)' }}>
                 <Download size={14} /> Export CSV
               </button>
             </div>
             {report && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', marginBottom: '16px' }}>
                 {BUCKET_LABELS.map((b) => (
-                  <div key={b.key} style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '8px', padding: '14px' }}>
-                    <span style={{ fontSize: '11px', color: '#5a625d', textTransform: 'uppercase', fontWeight: 700 }}>{b.label}</span>
-                    <strong style={{ display: 'block', fontSize: '18px', marginTop: '4px' }}>{ZMW(report.buckets[b.key] ?? 0)}</strong>
+                  <div key={b.key} style={{ background: 'var(--ws-panel)', border: '1px solid var(--ws-border)', borderRadius: '8px', padding: '14px' }}>
+                    <span style={{ fontSize: 'var(--fs-100)', color: 'var(--ws-fg-muted)', textTransform: 'uppercase', fontWeight: 700 }}>{b.label}</span>
+                    <strong style={{ display: 'block', fontSize: 'var(--fs-500)', marginTop: '4px' }}>{ZMW(report.buckets[b.key] ?? 0)}</strong>
                   </div>
                 ))}
               </div>
@@ -270,20 +275,20 @@ export function PayablesSection({ active }: Props) {
               <Loadable
                 loading={loading}
                 empty={outstanding.length === 0}
-                emptyIcon={<CheckCircle2 size={26} strokeWidth={1.5} style={{ color: '#8fbf5f' }} />}
+                emptyIcon={<CheckCircle2 size={26} strokeWidth={1.5} style={{ color: 'var(--ws-accent)' }} />}
                 emptyMessage="Nothing is outstanding. Record a supplier invoice when one arrives."
               >
                 {outstanding.map((e) => (
                   <article key={e.id} className="row" style={{ gridTemplateColumns: '1.4fr auto auto auto', gap: '14px' }}>
                     <div>
-                      <strong style={{ fontSize: '15px' }}>{e.supplier}</strong>
-                      <div style={{ fontSize: '12px', color: '#5a625d', marginTop: '3px' }}>
+                      <strong style={{ fontSize: 'var(--fs-400)' }}>{e.supplier}</strong>
+                      <div style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', marginTop: '3px' }}>
                         {CATEGORY_LABEL(e.category)}
                         {e.reference && ` · ${e.reference}`}
                         {e.due_date && ` · due ${new Date(e.due_date).toLocaleDateString()}`}
                       </div>
                       {e.vat_amount > 0 && (
-                        <div style={{ fontSize: '11px', color: e.vat_recoverable ? '#5f7c29' : '#c98745', marginTop: '4px' }}>
+                        <div style={{ fontSize: 'var(--fs-100)', color: e.vat_recoverable ? 'var(--ws-accent)' : 'var(--copper)', marginTop: '4px' }}>
                           {e.vat_recoverable
                             ? `VAT ${ZMW(e.vat_amount)} is claimable`
                             : `VAT ${ZMW(e.vat_amount)} cannot be claimed without a Smart Invoice reference`}
@@ -291,24 +296,24 @@ export function PayablesSection({ active }: Props) {
                       )}
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <strong style={{ fontSize: '16px', fontVariantNumeric: 'tabular-nums' }}>{ZMW(e.outstanding)}</strong>
+                      <strong style={{ fontSize: 'var(--fs-400)', fontVariantNumeric: 'tabular-nums' }}>{ZMW(e.outstanding)}</strong>
                       {e.settled > 0 && (
-                        <div style={{ fontSize: '11px', color: '#5a625d' }}>{ZMW(e.settled)} of {ZMW(e.gross)} paid</div>
+                        <div style={{ fontSize: 'var(--fs-100)', color: 'var(--ws-fg-muted)' }}>{ZMW(e.settled)} of {ZMW(e.gross)} paid</div>
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       {can('expenses', 'create') && (
-                        <button onClick={() => openSettle(e)} className="primary" style={{ minHeight: '34px', fontSize: '12px', padding: '0 12px' }}>
+                        <button onClick={() => openSettle(e)} className="primary" style={{ minHeight: '34px', fontSize: 'var(--fs-200)', padding: '0 12px' }}>
                           <Wallet size={14} /> Pay
                         </button>
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       {can('expenses', 'update') && (
-                        <button onClick={() => openEdit(e)} style={{ background: '#eef0ea', border: 0, padding: 6, borderRadius: '4px' }}><Edit2 size={14} /></button>
+                        <button onClick={() => openEdit(e)} style={{ background: 'var(--ws-canvas)', border: 0, padding: 6, borderRadius: '4px' }}><Edit2 size={14} /></button>
                       )}
                       {can('expenses', 'delete') && e.settled === 0 && (
-                        <button onClick={() => remove(e)} style={{ background: '#ffe2e2', color: '#a00', border: 0, padding: 6, borderRadius: '4px' }}><Trash2 size={14} /></button>
+                        <button onClick={() => remove(e)} style={{ background: 'var(--tone-danger-bg)', color: 'var(--tone-danger-fg)', border: 0, padding: 6, borderRadius: '4px' }}><Trash2 size={14} /></button>
                       )}
                     </div>
                   </article>
@@ -327,8 +332,8 @@ export function PayablesSection({ active }: Props) {
                   .sort((a, b) => b[1] - a[1])
                   .map(([cat, total]) => (
                     <article key={cat} className="row" style={{ gridTemplateColumns: '1fr auto' }}>
-                      <strong style={{ fontSize: '14px' }}>{CATEGORY_LABEL(cat)}</strong>
-                      <span style={{ fontSize: '15px', fontWeight: 700, color: '#111512', fontVariantNumeric: 'tabular-nums' }}>{ZMW(total)}</span>
+                      <strong style={{ fontSize: 'var(--fs-300)' }}>{CATEGORY_LABEL(cat)}</strong>
+                      <span style={{ fontSize: 'var(--fs-400)', fontWeight: 700, color: 'var(--ws-fg)', fontVariantNumeric: 'tabular-nums' }}>{ZMW(total)}</span>
                     </article>
                   ))}
               </div>
@@ -348,45 +353,45 @@ export function PayablesSection({ active }: Props) {
         <form id="expense-form" onSubmit={save} style={{ display: 'grid', gap: '12px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px' }}>
             <div>
-              <label style={{ fontSize: '12px', color: '#5a625d' }}>Supplier</label>
-              <input required value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Supplier</label>
+              <input required value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)' }} />
             </div>
             <div>
-              <label style={{ fontSize: '12px', color: '#5a625d' }}>Supplier TPIN</label>
-              <input value={form.supplier_tpin} onChange={(e) => setForm({ ...form, supplier_tpin: e.target.value })} placeholder="10 digits" style={{ color: '#111512', background: '#f7f8f3' }} />
+              <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Supplier TPIN</label>
+              <input value={form.supplier_tpin} onChange={(e) => setForm({ ...form, supplier_tpin: e.target.value })} placeholder="10 digits" style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)' }} />
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
-              <label style={{ fontSize: '12px', color: '#5a625d' }}>Category</label>
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as ExpenseCategory })} style={{ color: '#111512', background: '#f7f8f3' }}>
+              <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Category</label>
+              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as ExpenseCategory })} style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)' }}>
                 {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ fontSize: '12px', color: '#5a625d' }}>Their invoice number</label>
-              <input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Their invoice number</label>
+              <input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)' }} />
             </div>
           </div>
 
           <div>
-            <label style={{ fontSize: '12px', color: '#5a625d' }}>VAT treatment</label>
-            <select value={form.vat_treatment} onChange={(e) => setTreatment(e.target.value as VatTreatment)} style={{ color: '#111512', background: '#f7f8f3' }}>
+            <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>VAT treatment</label>
+            <select value={form.vat_treatment} onChange={(e) => setTreatment(e.target.value as VatTreatment)} style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)' }}>
               {VAT_TREATMENTS.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
             </select>
-            <p style={{ fontSize: '11px', color: '#8a908a', margin: '6px 0 0' }}>
+            <p style={{ fontSize: 'var(--fs-100)', color: 'var(--ws-fg-subtle)', margin: '6px 0 0' }}>
               {VAT_TREATMENTS.find((v) => v.value === form.vat_treatment)?.hint}
             </p>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
-              <label style={{ fontSize: '12px', color: '#5a625d' }}>Amount before VAT</label>
+              <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Amount before VAT</label>
               <NumberField required value={form.net_amount} onChange={(net_amount) => setForm({ ...form, net_amount })} />
             </div>
             <div>
-              <label style={{ fontSize: '12px', color: '#5a625d' }}>VAT charged</label>
+              <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>VAT charged</label>
               <NumberField
                 value={form.vat_amount}
                 onChange={(vat_amount) => setForm({ ...form, vat_amount })}
@@ -396,14 +401,14 @@ export function PayablesSection({ active }: Props) {
           </div>
 
           <div>
-            <label style={{ fontSize: '12px', color: '#5a625d' }}>Smart Invoice reference</label>
+            <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Smart Invoice reference</label>
             <input
               value={form.smart_invoice_ref}
               onChange={(e) => setForm({ ...form, smart_invoice_ref: e.target.value })}
               placeholder="ZRA Mark ID from their invoice"
-              style={{ color: '#111512', background: '#f7f8f3' }}
+              style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)' }}
             />
-            <p style={{ fontSize: '11px', color: form.vat_treatment === 'standard' && !form.smart_invoice_ref ? '#c98745' : '#8a908a', margin: '6px 0 0', lineHeight: 1.5 }}>
+            <p style={{ fontSize: 'var(--fs-100)', color: form.vat_treatment === 'standard' && !form.smart_invoice_ref ? 'var(--copper)' : 'var(--ws-fg-subtle)', margin: '6px 0 0', lineHeight: 1.5 }}>
               {form.vat_treatment === 'standard' && !form.smart_invoice_ref
                 ? 'Without this, the VAT on this invoice is a cost. ZRA only accepts an input VAT claim backed by a Smart Invoice.'
                 : 'The Mark ID ZRA prints on a Smart Invoice, next to the QR code.'}
@@ -412,17 +417,17 @@ export function PayablesSection({ active }: Props) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
-              <label style={{ fontSize: '12px', color: '#5a625d' }}>Payment due</label>
-              <input type="date" value={form.due_date ?? ''} onChange={(e) => setForm({ ...form, due_date: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }} />
+              <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Payment due</label>
+              <input type="date" value={form.due_date ?? ''} onChange={(e) => setForm({ ...form, due_date: e.target.value })} style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)' }} />
             </div>
-            <div style={{ alignSelf: 'end', paddingBottom: '14px', fontSize: '13px', color: '#5a625d' }}>
-              Total payable <strong style={{ color: '#111512' }}>{ZMW(form.net_amount + form.vat_amount)}</strong>
+            <div style={{ alignSelf: 'end', paddingBottom: '14px', fontSize: 'var(--fs-300)', color: 'var(--ws-fg-muted)' }}>
+              Total payable <strong style={{ color: 'var(--ws-fg)' }}>{ZMW(form.net_amount + form.vat_amount)}</strong>
             </div>
           </div>
 
           <div>
-            <label style={{ fontSize: '12px', color: '#5a625d' }}>Notes</label>
-            <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '70px' }} />
+            <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Notes</label>
+            <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)', minHeight: '70px' }} />
           </div>
         </form>
       </Modal>
@@ -437,25 +442,25 @@ export function PayablesSection({ active }: Props) {
         <form id="settle-form" onSubmit={recordSettlement} style={{ display: 'grid', gap: '12px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
-              <label style={{ fontSize: '12px', color: '#5a625d' }}>Amount</label>
+              <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Amount</label>
               <NumberField required value={settlement.amount} onChange={(amount) => setSettlement({ ...settlement, amount })} />
             </div>
             <div>
-              <label style={{ fontSize: '12px', color: '#5a625d' }}>Method</label>
-              <select value={settlement.method} onChange={(e) => setSettlement({ ...settlement, method: e.target.value })} style={{ color: '#111512', background: '#f7f8f3' }}>
+              <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Method</label>
+              <select value={settlement.method} onChange={(e) => setSettlement({ ...settlement, method: e.target.value })} style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)' }}>
                 {SETTLE_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
               </select>
             </div>
           </div>
           <div>
-            <label style={{ fontSize: '12px', color: '#5a625d' }}>Reference</label>
-            <input value={settlement.reference} onChange={(e) => setSettlement({ ...settlement, reference: e.target.value })} placeholder="Transfer or transaction reference" style={{ color: '#111512', background: '#f7f8f3' }} />
+            <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Reference</label>
+            <input value={settlement.reference} onChange={(e) => setSettlement({ ...settlement, reference: e.target.value })} placeholder="Transfer or transaction reference" style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)' }} />
           </div>
           <div>
-            <label style={{ fontSize: '12px', color: '#5a625d' }}>Note</label>
-            <textarea value={settlement.note} onChange={(e) => setSettlement({ ...settlement, note: e.target.value })} style={{ color: '#111512', background: '#f7f8f3', minHeight: '60px' }} />
+            <label style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)' }}>Note</label>
+            <textarea value={settlement.note} onChange={(e) => setSettlement({ ...settlement, note: e.target.value })} style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)', minHeight: '60px' }} />
           </div>
-          <p style={{ fontSize: '11px', color: '#8a908a', margin: 0, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 'var(--fs-100)', color: 'var(--ws-fg-subtle)', margin: 0, lineHeight: 1.5 }}>
             This records that the payment was made. It does not move any money.
           </p>
         </form>

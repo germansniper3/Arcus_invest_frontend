@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Hammer, Cpu, Calendar, MapPin, Layers } from 'lucide-react';
+import { ArrowRight, Calendar, Cpu, Hammer, Layers, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ChatWidget } from '../components/ChatWidget';
 import { Nav } from '../components/Nav';
@@ -8,13 +8,58 @@ import { QuoteForm } from '../components/QuoteForm';
 import { SmartImage } from '../components/SmartImage';
 import { api } from '../lib/api';
 import { arcusImages } from '../lib/assets';
-import type { Event, Product, GalleryItem } from '../types';
+import type { Event, GalleryItem, Product } from '../types';
+
+const services = [
+  {
+    icon: Layers,
+    title: 'Electronic maintenance, design and PCB manufacturing',
+    body: 'Board repair, prototyping, circuit debugging, reflow work and production-ready printed circuit assemblies.',
+  },
+  {
+    icon: Hammer,
+    title: 'Mechanical engineering and fabrication',
+    body: 'CNC machining, metal fabrication, enclosures, installation support and practical repair for industrial equipment.',
+  },
+  {
+    icon: Cpu,
+    title: 'Product development from concept to handover',
+    body: 'Hardware, firmware, software and production support held together by one local engineering team.',
+  },
+];
+
+const workshopSlides = [
+  {
+    id: 1,
+    label: 'Electronics workshop',
+    title: 'Electrical and electronics workshop',
+    image: arcusImages.electronicsWorkshop,
+    service: 'PCB & electronics',
+    intro: 'PCB work, firmware programming and failure analysis happen in one controlled lab, so prototypes move from bench test to client review without leaving the team.',
+    details: [
+      ['Capabilities', 'PCB population, reflow soldering, hand soldering, circuit debugging, functional testing and firmware programming.'],
+      ['Client benefit', 'Rapid prototype cycles and in-house validation shorten the distance between an idea, a failure and the next working version.'],
+    ],
+  },
+  {
+    id: 2,
+    label: 'Machine shop',
+    title: 'Mechanical workshop and machine shop',
+    image: arcusImages.mechanicalWorkshop,
+    service: 'Mechanical fabrication',
+    intro: 'Precision components and rugged enclosures are built close to the electronics team, which keeps mechanical fit and electrical realities in the same conversation.',
+    details: [
+      ['Machine shop', 'CNC milling, lathes and drill presses for high-tolerance metal and plastic components.'],
+      ['Fabrication shop', 'Cutting, welding, forming and finishing for durable enclosures, frames and structural chassis.'],
+    ],
+  },
+];
 
 export function PublicSite() {
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [selectedService, setSelectedService] = useState<string>('');
-  const [workshopSlide, setWorkshopSlide] = useState(1); // Slide 1: Electronics, Slide 2: Mechanical
+  const [selectedService, setSelectedService] = useState('');
+  const [workshopSlide, setWorkshopSlide] = useState(1);
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
 
   useEffect(() => {
@@ -23,296 +68,203 @@ export function PublicSite() {
     api.listPublicGallery().then(setGalleryItems).catch(() => {});
   }, []);
 
-  // Admin-managed photos win; the built-in trio is the fallback so the section
-  // is never empty before anything has been uploaded.
+  const activeWorkshop = workshopSlides.find((item) => item.id === workshopSlide) ?? workshopSlides[0];
   const shownGallery = galleryItems.length > 0
     ? galleryItems.map((g) => ({ src: g.image_url, label: g.title, caption: g.caption }))
     : [
-        { src: arcusImages.pcbWorkbench, label: 'Reflow Oven', caption: '' },
-        { src: arcusImages.assembly, label: 'Pick and Place', caption: '' },
-        { src: arcusImages.mechanicalWorkshop, label: 'CNC Mill Prototyping', caption: '' },
+        { src: arcusImages.pcbWorkbench, label: 'Reflow oven', caption: 'Board-level repair and prototyping' },
+        { src: arcusImages.assembly, label: 'Assembly bench', caption: 'Electronics builds and validation' },
+        { src: arcusImages.mechanicalWorkshop, label: 'CNC prototyping', caption: 'Machined parts and enclosures' },
       ];
 
   return (
     <>
       <Nav />
       <main>
-        {/* HERO SECTION */}
         <section className="hero">
-          <img src={arcusImages.pcbWorkbench} alt="PCB Workbench" className="hero-image" />
+          <img src={arcusImages.pcbWorkbench} alt="PCB repair and prototyping bench" className="hero-image" />
           <div className="hero-shade" />
-          <motion.div 
-            className="hero-copy" 
-            initial={{ opacity: 0, y: 24 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            transition={{ duration: 0.7 }}
+          <motion.div
+            className="hero-copy"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.62, ease: [0.23, 1, 0.32, 1] }}
           >
-            <p className="eyebrow" style={{ color: 'var(--accent)', fontWeight: 'bold' }}>
-              Mining Equipment | Construction Equipment | Electronics | Electrical | Mechanical | Software | Many More
-            </p>
+            <p className="eyebrow">Engineering, fabrication and technical support in Zambia</p>
             <h1>ARCUS INVESTMENTS</h1>
-            <p style={{ fontSize: '20px', color: '#ede8d8', lineHeight: '1.6', marginBottom: '32px' }}>
-              Whether you're building from scratch, optimizing existing designs, or troubleshooting faults, we’re your partner.
+            <p>
+              We repair, design and build electronics, mechanical parts, automation systems and custom equipment for teams that need practical engineering close to site.
             </p>
-            <div className="hero-actions" style={{ display: 'flex', gap: '14px' }}>
-              <a href="#quote" className="primary" style={{ padding: '0 24px' }}>Get A Quote <ArrowRight size={18} /></a>
-              <a href="#about" className="secondary" style={{ padding: '0 24px' }}>Learn More</a>
-              <Link to="/arcus-innovation-hub-enrollment-manager" className="secondary" style={{ border: '1px solid var(--accent)', color: 'var(--accent)' }}>Innovation Hub</Link>
+            <div className="hero-actions">
+              <a href="#quote" className="primary">Get a quote <ArrowRight size={18} /></a>
+              <a href="#workshops" className="secondary">See the workshops</a>
+              <Link to="/arcus-innovation-hub-enrollment-manager" className="secondary secondary-accent">Innovation Hub</Link>
             </div>
           </motion.div>
         </section>
 
-        {/* ABOUT US SECTION */}
-        <section id="about" className="band" style={{ background: '#0e120f', borderBottom: '1px solid var(--line)' }}>
-          <div className="section-head" style={{ marginBottom: '48px' }}>
-            <div>
-              <p className="eyebrow">ABOUT US</p>
-              <h2 style={{ color: '#fff' }}>Arcus Investments is a Zambian-owned engineering firm dedicated to bringing innovative products to life.</h2>
-            </div>
-            <div>
-              <p style={{ fontSize: '16px', lineHeight: '1.8' }}>
-                We provide complete, locally accessible maintenance, development and manufacturing services for a wide range of industries.
-              </p>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', marginBottom: '40px' }}>
-            <div style={{ background: '#121714', border: '1px solid var(--line)', padding: '32px', borderRadius: '12px' }}>
-              <div style={{ color: 'var(--accent)', marginBottom: '16px' }}><Layers size={32} /></div>
-              <h3 style={{ color: '#fff', fontSize: '18px', marginBottom: '12px' }}>Electronic Maintenance, Design & PCB Manufacturing</h3>
-              <p style={{ fontSize: '14px', lineHeight: '1.6' }}>From single-layer boards to complex multi-layer designs, we ensure precision and reliability in all printed circuit assemblies.</p>
-            </div>
-
-            <div style={{ background: '#121714', border: '1px solid var(--line)', padding: '32px', borderRadius: '12px' }}>
-              <div style={{ color: 'var(--accent)', marginBottom: '16px' }}><Hammer size={32} /></div>
-              <h3 style={{ color: '#fff', fontSize: '18px', marginBottom: '12px' }}>Mechanical Engineering</h3>
-              <p style={{ fontSize: '14px', lineHeight: '1.6' }}>Full maintenance, design, prototyping, installation and analysis for specialized systems, enclosures, components, and integrated machinery.</p>
-            </div>
-
-            <div style={{ background: '#121714', border: '1px solid var(--line)', padding: '32px', borderRadius: '12px' }}>
-              <div style={{ color: 'var(--accent)', marginBottom: '16px' }}><Cpu size={32} /></div>
-              <h3 style={{ color: '#fff', fontSize: '18px', marginBottom: '12px' }}>End-to-End Product Development</h3>
-              <p style={{ fontSize: '14px', lineHeight: '1.6' }}>We manage the entire journey from initial concept and prototyping to full-scale production, industrial design, and lifetime support.</p>
-            </div>
-          </div>
-
-          <div style={{ textAlign: 'center', background: '#131b15', border: '1px solid var(--line)', padding: '24px', borderRadius: '12px' }}>
-            <p style={{ color: 'var(--accent)', fontWeight: '600', margin: 0 }}>
-              Partner with us for an affordable, streamlined, and collaborative approach to maintaining and creating high-quality products.
-            </p>
-          </div>
-        </section>
-
-        {/* PRODUCTS & SERVICES SECTION */}
-        <section id="products-services" className="band" style={{ background: '#0b0d0c' }}>
+        <section id="about" className="band band-dark">
           <div className="section-head">
             <div>
-              <p className="eyebrow">PRODUCTS & SERVICES</p>
-              <h2 style={{ color: '#fff' }}>Showcasing our proprietary systems and technical electronics capabilities.</h2>
+              <p className="eyebrow">About Arcus</p>
+              <h2>Zambian-owned engineering for equipment, electronics and product builds.</h2>
+            </div>
+            <p>
+              Arcus brings maintenance, design, prototyping and manufacturing into one local workflow, giving mining, construction and product teams a faster path from problem to working solution.
+            </p>
+          </div>
+
+          <div className="service-strip">
+            {services.map(({ icon: Icon, title, body }) => (
+              <article className="service-panel" key={title}>
+                <Icon size={28} />
+                <h3>{title}</h3>
+                <p>{body}</p>
+              </article>
+            ))}
+          </div>
+
+          <p className="proof-line">Built for affordable, collaborative engineering with quality control kept close to the people doing the work.</p>
+        </section>
+
+        <section id="products-services" className="band band-black">
+          <div className="section-head section-head-narrow">
+            <div>
+              <p className="eyebrow">Products and services</p>
+              <h2>Custom electronics plus database-backed inventory from the Arcus catalogue.</h2>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '32px', marginBottom: '56px' }}>
-            {/* Custom PCB Card (service, not a database-backed product) */}
-            <div style={{ background: '#121714', border: '1px solid var(--line)', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxWidth: '620px' }}>
-              <div style={{ height: '240px', overflow: 'hidden' }}>
-                <img src={arcusImages.pcbService} alt="Custom PCB design" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              </div>
-              <div style={{ padding: '32px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <h3 style={{ color: '#fff', fontSize: '24px', marginBottom: '12px' }}>CUSTOM PCB DESIGN & ELECTRONICS SOLUTIONS</h3>
-                  <p style={{ fontSize: '14px', lineHeight: '1.7', marginBottom: '24px' }}>
-                    We design and develop custom printed circuit boards (PCBs) and complete electronic solutions tailored to your product requirements. From concept to production-ready hardware, we turn ideas into reliable, high-performance electronic systems.
-                  </p>
-                </div>
-                <div style={{ display: 'flex' }}>
-                  <a href="#quote" onClick={() => setSelectedService('PCB & electronics')} className="primary" style={{ fontSize: '13px', minHeight: '38px', padding: '0 16px' }}>
-                    Get A Quote
-                  </a>
-                </div>
-              </div>
+          <article className="featured-service">
+            <SmartImage src={arcusImages.pcbService} alt="Custom PCB design and electronics service" />
+            <div>
+              <p className="eyebrow">Core service</p>
+              <h3>Custom PCB design and electronics solutions</h3>
+              <p>
+                From circuit design and PCB layout to assembly, debugging and production handover, Arcus turns product ideas into reliable electronic systems.
+              </p>
+              <a href="#quote" onClick={() => setSelectedService('PCB & electronics')} className="primary">
+                Request PCB work <ArrowRight size={16} />
+              </a>
             </div>
-          </div>
+          </article>
 
-          {/* DYNAMIC PRODUCTS FROM DATABASE — the only source of product listings on this page */}
-          <div style={{ borderTop: '1px solid var(--line)', paddingTop: '48px' }}>
-            <h3 style={{ color: '#fff', marginBottom: '24px', fontSize: '20px' }}>Available Inventory & Models</h3>
-            {products.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-                {products.map((p) => (
-                  <div key={p.id} style={{ background: '#101410', border: '1px solid var(--line)', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ height: '200px', background: '#121712', overflow: 'hidden', position: 'relative' }}>
-                      {p.image_url ? (
-                        <img src={p.image_url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      ) : (
-                        <div className="image-fallback" style={{ width: '100%', height: '100%', minHeight: 0 }} role="img" aria-label={p.name} />
-                      )}
-                      <div style={{ position: 'absolute', top: '12px', right: '12px', background: p.stock > 0 ? '#e8f2dc' : '#ffe2e2', color: p.stock > 0 ? '#35520f' : '#a00', fontSize: '11px', fontWeight: 'bold', padding: '4px 10px', borderRadius: '20px' }}>
-                        {p.stock > 0 ? `In Stock (${p.stock})` : 'Out of Stock / Custom Order'}
-                      </div>
-                    </div>
-                    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
+          <div className="inventory-head">
+            <h3>Available inventory and models</h3>
+            <span>{products.length > 0 ? `${products.length} listed` : 'Catalogue warming up'}</span>
+          </div>
+          {products.length > 0 ? (
+            <div className="inventory-grid">
+              {products.map((product) => (
+                <article className="product-tile" key={product.id}>
+                  <div className="product-media">
+                    {product.image_url ? (
+                      <img src={product.image_url} alt={product.name} />
+                    ) : (
+                      <div className="image-fallback" role="img" aria-label={product.name} />
+                    )}
+                    <span data-stock={product.stock > 0 ? 'in' : 'out'}>
+                      {product.stock > 0 ? `In stock (${product.stock})` : 'Custom order'}
+                    </span>
+                  </div>
+                  <div className="product-body">
+                    <h4>{product.name}</h4>
+                    <p>{product.description}</p>
+                    {product.specs && <code>{product.specs}</code>}
+                    <footer>
                       <div>
-                        <h4 style={{ color: '#fff', fontSize: '18px', margin: '0 0 8px' }}>{p.name}</h4>
-                        <p style={{ fontSize: '13px', color: '#b8b7ad', lineHeight: '1.6', marginBottom: '16px' }}>{p.description}</p>
-                        {p.specs && (
-                          <div style={{ fontSize: '12px', color: 'var(--accent)', background: '#131b14', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--line)', marginBottom: '20px', fontFamily: 'monospace' }}>
-                            {p.specs}
-                          </div>
-                        )}
+                        <span>Estimated price</span>
+                        <strong>{product.price > 0 ? `${product.price.toLocaleString()} ZMW` : 'Quote only'}</strong>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--line)', paddingTop: '16px' }}>
-                        <div>
-                          <span style={{ fontSize: '11px', color: '#5a625d', display: 'block' }}>ESTIMATED PRICE</span>
-                          <strong style={{ fontSize: '16px', color: '#fff' }}>
-                            {p.price > 0 ? `${p.price.toLocaleString()} ZMW` : 'Quote Only'}
-                          </strong>
-                        </div>
-                        <a
-                          href="#quote"
-                          onClick={() => setSelectedService(`Product: ${p.name}`)}
-                          className="primary"
-                          style={{ padding: '8px 16px', fontSize: '12px', minHeight: '36px' }}
-                        >
-                          Inquire Now <ArrowRight size={14} />
-                        </a>
-                      </div>
-                    </div>
+                      <a href="#quote" onClick={() => setSelectedService(`Product: ${product.name}`)} className="primary">
+                        Inquire <ArrowRight size={14} />
+                      </a>
+                    </footer>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-public">Product catalogue coming soon. Ask us for a quote on custom builds.</div>
+          )}
+        </section>
+
+        <section id="workshops" className="workshop-feature">
+          <div className="workshop-copy">
+            <p className="eyebrow">Workshops and facilities</p>
+            <h2>Design expertise meets physical fabrication on the same floor.</h2>
+            <p>
+              Arcus keeps electronics, machining, fabrication and testing close together so quality, cost and timing stay visible throughout the build.
+            </p>
+            <div className="segmented" role="tablist" aria-label="Workshop view">
+              {workshopSlides.map((item) => (
+                <button
+                  type="button"
+                  key={item.id}
+                  onClick={() => setWorkshopSlide(item.id)}
+                  className={item.id === workshopSlide ? 'active' : ''}
+                  role="tab"
+                  aria-selected={item.id === workshopSlide}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <motion.article
+            className="workshop-panel"
+            key={activeWorkshop.id}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+          >
+            <SmartImage src={activeWorkshop.image} alt={activeWorkshop.title} />
+            <div>
+              <h3>{activeWorkshop.title}</h3>
+              <p>{activeWorkshop.intro}</p>
+              <div className="detail-list">
+                {activeWorkshop.details.map(([label, value]) => (
+                  <div key={label}>
+                    <strong>{label}</strong>
+                    <span>{value}</span>
                   </div>
                 ))}
               </div>
-            ) : (
-              <div style={{ border: '1px dashed var(--line)', borderRadius: '12px', padding: '40px', textAlign: 'center', color: '#b8b7ad' }}>
-                Product catalogue coming soon. Ask us for a quote on custom builds.
-              </div>
-            )}
-          </div>
+              <a href="#quote" onClick={() => setSelectedService(activeWorkshop.service)} className="primary">
+                Discuss this work <ArrowRight size={16} />
+              </a>
+            </div>
+          </motion.article>
         </section>
 
-        {/* WORKSHOPS AND FACILITIES SECTION */}
-        <section id="workshops" className="band" style={{ background: '#0e120f', borderTop: '1px solid var(--line)' }}>
-          <div style={{ marginBottom: '32px' }}>
-            <p className="eyebrow">OUR WORKSHOPS AND FACILITIES</p>
-            <h2 style={{ color: '#fff', maxWidth: '900px' }}>At Arcus Investments, our ideas are brought to life in our dedicated, fully-equipped workshops.</h2>
-            <p style={{ fontSize: '15px', lineHeight: '1.8', maxWidth: '850px', marginTop: '16px' }}>
-              These spaces are the engine of our operation, where our design expertise meets physical fabrication. Investing in local, state-of-the-art facilities allows us to maintain complete control over quality, timelines, and cost, ensuring we deliver exceptional results for our clients at every stage of product development.
-            </p>
-          </div>
-
-          {/* Slide Indicator Selector */}
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '32px' }}>
-            <button 
-              onClick={() => setWorkshopSlide(1)} 
-              className={workshopSlide === 1 ? 'primary' : 'secondary'} 
-              style={{ minHeight: '36px', fontSize: '12px', padding: '0 16px' }}
-            >
-              Slide 1: Electrical & Electronics Workshop
-            </button>
-            <button 
-              onClick={() => setWorkshopSlide(2)} 
-              className={workshopSlide === 2 ? 'primary' : 'secondary'} 
-              style={{ minHeight: '36px', fontSize: '12px', padding: '0 16px' }}
-            >
-              Slide 2: Mechanical Workshop & Machine Shop
-            </button>
-          </div>
-
-          {/* Slide 1 Content */}
-          {workshopSlide === 1 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', alignItems: 'center' }}>
-              <SmartImage src={arcusImages.electronicsWorkshop} alt="Electrical & Electronics Workshop" style={{ borderRadius: '8px', width: '100%', height: '360px', objectFit: 'cover' }} />
-              <div>
-                <h3 style={{ color: '#fff', fontSize: '22px', marginBottom: '14px' }}>ELECTRICAL & ELECTRONICS WORKSHOP</h3>
-                <p style={{ fontSize: '14px', lineHeight: '1.7', marginBottom: '16px' }}>
-                  Our electronics lab is equipped for every stage of PCB development, from initial prototyping to rigorous testing and validation.
-                </p>
-                <div style={{ display: 'grid', gap: '12px', marginBottom: '24px' }}>
-                  <div>
-                    <strong style={{ color: 'var(--accent)', fontSize: '12px', display: 'block' }}>CAPABILITIES:</strong>
-                    <span style={{ fontSize: '13px' }}>PCB population (reflow soldering), precise hand-soldering, circuit debugging, functional testing, and firmware programming.</span>
-                  </div>
-                  <div>
-                    <strong style={{ color: 'var(--accent)', fontSize: '12px', display: 'block' }}>CLIENT BENEFIT:</strong>
-                    <span style={{ fontSize: '13px' }}>Rapid prototyping cycles and in-house testing mean we can iterate and solve problems quickly, dramatically speeding up your development timeline.</span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <a href="#quote" onClick={() => setSelectedService('PCB & electronics')} className="primary" style={{ fontSize: '13px', minHeight: '38px', padding: '0 16px' }}>
-                    Get A Quote
-                  </a>
-                  <a href="#quote" onClick={() => setSelectedService('PCB & electronics')} className="secondary" style={{ fontSize: '13px', minHeight: '38px', padding: '0 16px' }}>
-                    Learn More
-                  </a>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Slide 2 Content */}
-          {workshopSlide === 2 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', alignItems: 'start' }}>
-              <SmartImage src={arcusImages.mechanicalWorkshop} alt="Mechanical Workshop" style={{ borderRadius: '8px', width: '100%', height: '400px', objectFit: 'cover' }} />
-              <div style={{ display: 'grid', gap: '24px' }}>
-                <div>
-                  <h3 style={{ color: '#fff', fontSize: '20px', marginBottom: '8px' }}>MECHANICAL WORKSHOP</h3>
-                  <div style={{ background: '#121714', border: '1px solid var(--line)', padding: '20px', borderRadius: '8px', marginBottom: '16px' }}>
-                    <h4 style={{ color: 'var(--accent)', margin: '0 0 6px 0', fontSize: '15px' }}>Machine Shop</h4>
-                    <p style={{ fontSize: '13px', margin: '0 0 10px 0' }}>Our machine shop is dedicated to crafting high-tolerance metal and plastic components that form the backbone of robust mechanical designs.</p>
-                    <span style={{ fontSize: '12px', display: 'block', color: '#b8b7ad' }}><strong>Equipment:</strong> CNC milling machines, lathes and drill presses.</span>
-                    <span style={{ fontSize: '12px', display: 'block', color: '#b8b7ad', marginTop: '4px' }}><strong>Client Benefit:</strong> In-house fabrication eliminates outsourcing delays.</span>
-                  </div>
-
-                  <div style={{ background: '#121714', border: '1px solid var(--line)', padding: '20px', borderRadius: '8px' }}>
-                    <h4 style={{ color: 'var(--accent)', margin: '0 0 6px 0', fontSize: '15px' }}>Fabrication Shop</h4>
-                    <p style={{ fontSize: '13px', margin: '0 0 10px 0' }}>For larger-scale builds and enclosures, our fabrication shop handles cutting, welding, and forming raw materials into finished products.</p>
-                    <span style={{ fontSize: '12px', display: 'block', color: '#b8b7ad' }}><strong>Equipment:</strong> MIG welders, metal brakes and shears, grinders, and finishing stations.</span>
-                    <span style={{ fontSize: '12px', display: 'block', color: '#b8b7ad', marginTop: '4px' }}><strong>Client Benefit:</strong> Create durable, professional-grade enclosures and structural chassis.</span>
-                  </div>
-                </div>
-                <div>
-                  <a href="#quote" onClick={() => setSelectedService('Mechanical fabrication')} className="primary" style={{ fontSize: '13px', minHeight: '38px', padding: '0 16px' }}>
-                    Get A Quote
-                  </a>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* EVENTS SECTION */}
         {upcomingEvents.length > 0 && (
-          <section className="band" style={{ background: '#101410', borderTop: '1px solid var(--line)' }}>
+          <section className="band band-dark">
             <div className="section-head">
               <div>
                 <p className="eyebrow">Green Engineering 2026</p>
                 <h2>Upcoming programs and events.</h2>
               </div>
-              <Link to="/green-engineering-2026" className="text-link" style={{ whiteSpace: 'nowrap' }}>
+              <Link to="/green-engineering-2026" className="text-link">
                 View all events <ArrowRight size={16} />
               </Link>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+            <div className="event-grid">
               {upcomingEvents.map((event) => (
-                <motion.article
-                  whileHover={{ y: -5 }}
-                  key={event.id}
-                  style={{ background: '#121714', border: '1px solid var(--line)', borderRadius: '8px', overflow: 'hidden' }}
-                >
+                <motion.article whileHover={{ y: -4 }} key={event.id} className="event-card">
                   {event.image_url ? (
-                    <img src={event.image_url} alt={event.title} style={{ width: '100%', height: '160px', objectFit: 'cover' }} />
+                    <img src={event.image_url} alt={event.title} />
                   ) : (
-                    <div className="image-fallback" style={{ height: '160px' }} />
+                    <div className="image-fallback" />
                   )}
-                  <div style={{ padding: '20px' }}>
-                    <h3 style={{ color: '#fff', marginBottom: '10px' }}>{event.title}</h3>
-                    <p style={{ fontSize: '13px', marginBottom: '16px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{event.description}</p>
-                    <div style={{ fontSize: '12px', color: '#ede8d8', display: 'flex', flexDirection: 'column', gap: '5px', borderTop: '1px solid var(--line)', paddingTop: '12px' }}>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}><Calendar size={13} style={{ color: 'var(--accent)' }} />{new Date(event.date).toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric' })}</div>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}><MapPin size={13} style={{ color: 'var(--accent)' }} />{event.location}</div>
-                    </div>
-                    <Link to="/green-engineering-2026" className="primary" style={{ display: 'flex', marginTop: '14px', width: '100%', justifyContent: 'center' }}>
-                      Reserve a seat <ArrowRight size={15} />
-                    </Link>
+                  <div>
+                    <h3>{event.title}</h3>
+                    <p>{event.description}</p>
+                    <dl>
+                      <div><Calendar size={13} /><dt>Date</dt><dd>{new Date(event.date).toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric' })}</dd></div>
+                      <div><MapPin size={13} /><dt>Location</dt><dd>{event.location}</dd></div>
+                    </dl>
+                    <Link to="/green-engineering-2026" className="primary">Reserve a seat <ArrowRight size={15} /></Link>
                   </div>
                 </motion.article>
               ))}
@@ -320,44 +272,40 @@ export function PublicSite() {
           </section>
         )}
 
-        {/* GALLERY SECTION */}
-        <section id="gallery" className="band" style={{ background: '#0b0d0c', borderTop: '1px solid var(--line)' }}>
-          <div className="section-head" style={{ marginBottom: '32px' }}>
+        <section id="gallery" className="gallery-band">
+          <div className="section-head section-head-narrow">
             <div>
-              <p className="eyebrow">GALLERY</p>
-              <h2 style={{ color: '#fff' }}>Work from our electronics and fabrication floors.</h2>
+              <p className="eyebrow">Gallery</p>
+              <h2>Real work from the electronics and fabrication floors.</h2>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+          <div className="gallery-grid">
             {shownGallery.map((item, i) => (
-              <div key={`${item.label}-${i}`} style={{ background: '#121714', border: '1px solid var(--line)', borderRadius: '8px', overflow: 'hidden', height: '220px', display: 'grid', placeItems: 'center', position: 'relative' }}>
-                <SmartImage src={item.src} alt={item.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <div style={{ position: 'absolute', bottom: 0, inset: 'auto 0 0 0', background: 'rgba(0,0,0,0.6)', padding: '12px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{item.label}</div>
-                  {item.caption && <div style={{ fontSize: '11px', color: '#c9cec4', marginTop: '2px' }}>{item.caption}</div>}
-                </div>
-              </div>
+              <figure key={`${item.label}-${i}`}>
+                <SmartImage src={item.src} alt={item.label} />
+                <figcaption>
+                  <strong>{item.label}</strong>
+                  {item.caption && <span>{item.caption}</span>}
+                </figcaption>
+              </figure>
             ))}
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <a href="#quote" className="primary" style={{ padding: '0 24px' }}>Get A Quote</a>
-          </div>
+          <a href="#quote" className="primary gallery-cta">Get a quote</a>
         </section>
 
-
-        {/* QUOTE SECTION */}
-        <section id="quote" className="quote-section" style={{ background: '#0e120f', borderTop: '1px solid var(--line)' }}>
+        <section id="quote" className="quote-section">
           <div>
             <p className="eyebrow">Start a project</p>
             <h2>Send the scope. Arcus will turn it into a practical next step.</h2>
+            <p>Share the equipment, board, part, system or product you need help with. The portal stores the request directly in the back office.</p>
           </div>
           <QuoteForm preselectedService={selectedService} />
         </section>
       </main>
 
-      <footer className="footer" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-        <span>© {new Date().getFullYear()} Arcus Investments. All rights reserved</span>
-        <span style={{ fontSize: '12px', color: '#5a625d' }}>Kitwe Innovation Hub · Kitwe, Zambia</span>
+      <footer className="footer">
+        <span>Copyright {new Date().getFullYear()} Arcus Investments. All rights reserved.</span>
+        <span>Kitwe Innovation Hub - Kitwe, Zambia</span>
       </footer>
       <ChatWidget />
     </>

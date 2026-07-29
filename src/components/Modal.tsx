@@ -85,7 +85,7 @@ export function Modal({
             onCloseAutoFocus={(e) => { e.preventDefault(); restoreFocusTo.current?.focus(); }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-              <Dialog.Title style={{ margin: 0, fontSize: '20px' }}>{title}</Dialog.Title>
+              <Dialog.Title style={{ margin: 0, fontSize: 'var(--fs-500)' }}>{title}</Dialog.Title>
               <Dialog.Close asChild>
                 <button aria-label="Close" style={{ background: 'transparent', border: 0, padding: 4, cursor: 'pointer', color: 'inherit', flexShrink: 0 }}>
                   <X size={18} />
@@ -94,7 +94,7 @@ export function Modal({
             </div>
 
             {description && (
-              <Dialog.Description style={{ fontSize: '12px', color: '#5a625d', margin: 0 }}>
+              <Dialog.Description style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', margin: 0 }}>
                 {description}
               </Dialog.Description>
             )}
@@ -105,7 +105,7 @@ export function Modal({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  style={{ background: '#eef0ea', color: '#111512', border: 0, borderRadius: '4px', minHeight: '44px', padding: '0 16px', fontSize: '13px', cursor: 'pointer' }}
+                  style={{ background: 'var(--ws-canvas)', color: 'var(--ws-fg)', border: 0, borderRadius: '4px', minHeight: '44px', padding: '0 16px', fontSize: 'var(--fs-300)', cursor: 'pointer' }}
                 >
                   {cancelLabel}
                 </button>

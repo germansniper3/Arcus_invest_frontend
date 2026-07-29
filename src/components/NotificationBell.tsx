@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Bell, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { Modal } from './Modal';
-import { api } from '../lib/api';
+import { api, errorMessage } from '../lib/api';
 import type { EmailMode, Notification } from '../types';
 
 /**
@@ -78,8 +78,8 @@ export function NotificationBell({ onNavigate }: NotificationBellProps = {}) {
     try {
       await api.adminMarkAllNotificationsRead();
       await refresh();
-    } catch (err: any) {
-      toast.error(err.message || 'Could not mark all read');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Could not mark all read'));
     } finally {
       setLoading(false);
     }
@@ -91,9 +91,9 @@ export function NotificationBell({ onNavigate }: NotificationBellProps = {}) {
     try {
       await api.adminSetNotificationPreference(mode);
       toast.success('Email preference saved');
-    } catch (err: any) {
+    } catch (err) {
       setEmailMode(previous);
-      toast.error(err.message || 'Could not save the preference');
+      toast.error(errorMessage(err, 'Could not save the preference'));
     }
   }
 
@@ -104,7 +104,7 @@ export function NotificationBell({ onNavigate }: NotificationBellProps = {}) {
         {unread > 0 && (
           <span
             aria-label={`${unread} unread`}
-            style={{ marginLeft: '6px', minWidth: '18px', height: '18px', padding: '0 5px', borderRadius: '9px', background: '#a00', color: '#fff', fontSize: '11px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ marginLeft: '6px', minWidth: '18px', height: '18px', padding: '0 5px', borderRadius: '9px', background: 'var(--tone-danger-fg)', color: '#fff', fontSize: 'var(--fs-100)', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
           >
             {unread > 99 ? '99+' : unread}
           </span>
@@ -126,7 +126,7 @@ export function NotificationBell({ onNavigate }: NotificationBellProps = {}) {
         }
       >
         {items.length === 0 ? (
-          <p style={{ fontSize: '13px', color: '#8a908a', margin: 0 }}>
+          <p style={{ fontSize: 'var(--fs-300)', color: 'var(--ws-fg-subtle)', margin: 0 }}>
             Nothing needs you right now. Renewals, unreviewed submissions, pending extensions and stalled deals show up here.
           </p>
         ) : (
@@ -141,16 +141,16 @@ export function NotificationBell({ onNavigate }: NotificationBellProps = {}) {
                 role={onNavigate ? 'button' : undefined}
                 tabIndex={onNavigate ? 0 : undefined}
                 onKeyDown={onNavigate ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate(n.entity_type); setOpen(false); } } : undefined}
-                style={{ background: n.read_at ? '#f7f8f3' : '#fff', border: `1px solid ${n.read_at ? '#e2e4dd' : '#c8d3b4'}`, borderLeft: `3px solid ${n.read_at ? '#e2e4dd' : '#5f7c29'}`, borderRadius: '6px', padding: '9px 11px', cursor: onNavigate ? 'pointer' : 'default' }}
+                style={{ background: n.read_at ? 'var(--ws-sunken)' : 'var(--ws-panel)', border: `1px solid ${n.read_at ? 'var(--ws-border)' : 'var(--ws-border)'}`, borderLeft: `3px solid ${n.read_at ? 'var(--ws-border)' : 'var(--ws-accent)'}`, borderRadius: '6px', padding: '9px 11px', cursor: onNavigate ? 'pointer' : 'default' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'start' }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', fontWeight: n.read_at ? 400 : 700, color: '#111512' }}>{n.title}</div>
-                    <div style={{ fontSize: '12px', color: '#5a625d', marginTop: '2px' }}>{n.body}</div>
-                    <div style={{ fontSize: '11px', color: '#8a908a', marginTop: '3px' }}>{new Date(n.created_at).toLocaleString()}</div>
+                    <div style={{ fontSize: 'var(--fs-300)', fontWeight: n.read_at ? 400 : 700, color: 'var(--ws-fg)' }}>{n.title}</div>
+                    <div style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', marginTop: '2px' }}>{n.body}</div>
+                    <div style={{ fontSize: 'var(--fs-100)', color: 'var(--ws-fg-subtle)', marginTop: '3px' }}>{new Date(n.created_at).toLocaleString()}</div>
                   </div>
                   {!n.read_at && (
-                    <button type="button" onClick={(e) => { e.stopPropagation(); void markRead(n.id); }} title="Mark read" style={{ background: '#fff', border: '1px solid #dfe1da', borderRadius: '4px', padding: '5px 8px', fontSize: '11px', color: '#111512', cursor: 'pointer', flexShrink: 0 }}>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); void markRead(n.id); }} title="Mark read" style={{ background: 'var(--ws-panel)', border: '1px solid var(--ws-border)', borderRadius: '4px', padding: '5px 8px', fontSize: 'var(--fs-100)', color: 'var(--ws-fg)', cursor: 'pointer', flexShrink: 0 }}>
                       Mark read
                     </button>
                   )}
@@ -160,11 +160,11 @@ export function NotificationBell({ onNavigate }: NotificationBellProps = {}) {
           </div>
         )}
 
-        <div style={{ borderTop: '1px solid #e2e4dd', paddingTop: '12px' }}>
-          <div style={{ fontSize: '12px', color: '#5a625d', fontWeight: 700, marginBottom: '6px' }}>Email me</div>
+        <div style={{ borderTop: '1px solid var(--ws-border)', paddingTop: '12px' }}>
+          <div style={{ fontSize: 'var(--fs-200)', color: 'var(--ws-fg-muted)', fontWeight: 700, marginBottom: '6px' }}>Email me</div>
           <div style={{ display: 'grid', gap: '6px' }}>
             {EMAIL_MODES.map((m) => (
-              <label key={m.value} style={{ display: 'flex', alignItems: 'start', gap: '8px', fontSize: '13px', color: '#111512', cursor: 'pointer' }}>
+              <label key={m.value} style={{ display: 'flex', alignItems: 'start', gap: '8px', fontSize: 'var(--fs-300)', color: 'var(--ws-fg)', cursor: 'pointer' }}>
                 <input
                   type="radio"
                   name="email-mode"
@@ -174,7 +174,7 @@ export function NotificationBell({ onNavigate }: NotificationBellProps = {}) {
                 />
                 <span>
                   {m.label}
-                  <span style={{ display: 'block', fontSize: '11px', color: '#8a908a' }}>{m.hint}</span>
+                  <span style={{ display: 'block', fontSize: 'var(--fs-100)', color: 'var(--ws-fg-subtle)' }}>{m.hint}</span>
                 </span>
               </label>
             ))}

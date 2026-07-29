@@ -52,14 +52,14 @@ export function SessionExpiredDialog({ open, email, onReauthenticate, onSignOut 
       cancelLabel="Sign out"
       footer={
         <button type="submit" form="reauth-form" disabled={submitting || password === ''} className="primary"
-          style={{ padding: '9px 16px', fontSize: '14px', borderRadius: '6px', cursor: 'pointer' }}>
+          style={{ padding: '9px 16px', fontSize: 'var(--fs-300)', borderRadius: '6px', cursor: 'pointer' }}>
           {submitting ? 'Signing in…' : 'Continue'}
         </button>
       }
     >
       <form id="reauth-form" onSubmit={submit} style={{ display: 'grid', gap: '12px' }}>
-        <div style={{ fontSize: '13px', color: '#5a625d' }}>
-          Signed in as <strong style={{ color: '#111512' }}>{email}</strong>
+        <div style={{ fontSize: 'var(--fs-300)', color: 'var(--ws-fg-muted)' }}>
+          Signed in as <strong style={{ color: 'var(--ws-fg)' }}>{email}</strong>
         </div>
         <div className="auth-field">
           <Lock size={18} />
@@ -72,7 +72,7 @@ export function SessionExpiredDialog({ open, email, onReauthenticate, onSignOut 
             onChange={(e) => setPassword(e.target.value)}
           />
         </div>
-        {error && <div style={{ fontSize: '13px', color: '#a00' }}>{error}</div>}
+        {error && <div style={{ fontSize: 'var(--fs-300)', color: 'var(--tone-danger-fg)' }}>{error}</div>}
       </form>
     </Modal>
   );

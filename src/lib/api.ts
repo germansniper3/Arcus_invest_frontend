@@ -1,4 +1,73 @@
-import type { ChatMessage, Enrollment, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, ReceivablesReport, AccountPayment, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem, ApprovalRequest, ApprovalStatus, ApprovalRule, ApprovalAction, Expense, ExpenseCategory, VatTreatment, PayablesReport, CashPosition, StockMovement, StockMovementKind, TillSession, TillSummary, CounterSale, CounterMethod } from '../types';
+import type { ChatMessage, Enrollment, Event, Reservation, OnboardingInvitation, QuoteRequest, User, Product, ProgressReport, ExtensionRequest, Submission, StudentProfile, CapstoneMilestone, CapstoneComment, Opportunity, OpportunityActivity, PipelineForecast, AccountsIndex, AccountRecommendations, Contract, DocumentVersion, DocumentAccessLog, ContractSignature, Notification, EmailMode, ReceivablesReport, AccountPayment, AuditLog, Payment, EmailStatus, CustomRole, CustomRolePermission, GalleryItem, ApprovalRequest, ApprovalStatus, ApprovalRule, ApprovalAction, Expense, ExpenseCategory, VatTreatment, PayablesReport, CashPosition, StockMovement, StockMovementKind, TillSession, TillSummary, CounterSale, CounterMethod } from '../types';
+
+/**
+ * An endpoint that answers with nothing but a sentence.
+ *
+ * All nine delete handlers end in
+ * `c.JSON(http.StatusOK, map[string]string{"message": "… deleted"})`, and the
+ * two notification read-markers do the same with "marked read" — checked
+ * against the Go source rather than assumed, which is the only reason this is
+ * written down as a type instead of left as `any`.
+ *
+ * No call site reads the message. They are typed so that a handler changing to
+ * return the affected record, or to 204, becomes a compile error here rather
+ * than a surprise at a call site later.
+ */
+interface MessageResponse {
+  message: string;
+}
+
+/**
+ * Request bodies for the event and product writes.
+ *
+ * These mirror the anonymous bind structs in AdminCreateEvent/AdminUpdateEvent
+ * and AdminCreateProduct/AdminUpdateProduct — read off the Go source, not
+ * guessed from the call sites, so a field the server ignores cannot quietly
+ * look supported here. `slug` is optional because the admin form never sends
+ * it; the handler derives one from the title.
+ *
+ * The call sites pass their whole form object, which also carries `id`. That is
+ * accepted rather than rejected because excess-property checking applies to
+ * object literals, not to variables — and the id belongs in the URL, which is
+ * where it already goes.
+ */
+export interface EventBody {
+  title: string;
+  description: string;
+  date: string;
+  location: string;
+  capacity: number;
+  is_published: boolean;
+  image_url: string;
+  slug?: string;
+}
+
+export interface ProductBody {
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  image_url: string;
+  specs: string;
+  is_published: boolean;
+}
+
+/** What AdminBroadcast answers with. `status` is the stored broadcast's own
+ *  status, which is why a 200 can still mean nothing was emailed. */
+export interface BroadcastResult {
+  message: string;
+  recipients: number;
+  status: string;
+  subject: string;
+}
+
+/** What GET /invitations/:token answers with, before the account exists. */
+export interface InvitationPreview {
+  email: string;
+  full_name: string;
+  tier: string;
+  expires_at: string;
+}
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8032/api/v1';
 const TOKEN_KEY = 'arcus_token';
@@ -37,6 +106,29 @@ export class ApiError extends Error {
 /** True when the server blocked this action pending an approval decision. */
 export function isApprovalBlocked(err: unknown): err is ApiError {
   return err instanceof ApiError && err.status === 409 && 'approval_request_id' in err.payload;
+}
+
+/**
+ * The message to show the user for a thrown value.
+ *
+ * Replaces `catch (err: any) { toast.error(err.message || '…') }`, which was
+ * the shape of ninety of the project's `no-explicit-any` warnings. `any` was
+ * not silencing a typing inconvenience there — it was disabling the check that
+ * matters: a `throw` can carry anything, and `err.message` on a thrown string
+ * is `undefined`, so the fallback fired by accident rather than by design. On a
+ * thrown `null` it threw a second time, inside the error handler.
+ *
+ * Everything this codebase throws is an `Error` — `ApiError` above extends it,
+ * and the only other thrower is `fetch`'s `AbortError` (a `DOMException`) — so
+ * the narrowing keeps the real message in every case that actually occurs, and
+ * is honest about the ones that do not.
+ *
+ * `&& err.message` rather than a bare `instanceof` because the call sites it
+ * replaces used `||`, which also falls back on an `Error` with an empty
+ * message. That is worth keeping: a blank toast is not a report.
+ */
+export function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback;
 }
 
 // Backoff for a sleeping container. The Railway instance sleeps when idle, so
@@ -307,25 +399,25 @@ export const api = {
     request<ChatMessage>('/chat', { method: 'POST', body: JSON.stringify({ question, session_id: sessionID }) }),
 
   // Public events
-  listPublicEvents: () => request<any[]>('/events'),
-  getPublicEvent: (slug: string) => request<{ event: any; reservations_count: number }>(`/events/${slug}`),
+  listPublicEvents: () => request<Event[]>('/events'),
+  getPublicEvent: (slug: string) => request<{ event: Event; reservations_count: number }>(`/events/${slug}`),
   reserveEvent: (id: string, body: { full_name: string; email: string; phone?: string; notes?: string }) =>
-    request<any>(`/events/${id}/reserve`, { method: 'POST', body: JSON.stringify(body) }),
+    request<Reservation>(`/events/${id}/reserve`, { method: 'POST', body: JSON.stringify(body) }),
 
   // Invitation (public, unauthenticated)
-  previewInvitation: (token: string) => request<any>(`/invitations/${token}`),
+  previewInvitation: (token: string) => request<InvitationPreview>(`/invitations/${token}`),
   claimInvitation: (body: { token: string; password: string; capstone_title?: string; capstone_summary?: string }) =>
     request<User>('/invitations/claim', { method: 'POST', body: JSON.stringify(body) }),
 
   // Student hub
   studentDashboard: () =>
-    request<{ profile: any; enrollment: Enrollment; milestones: any[]; comments: any[]; progress_reports: ProgressReport[]; extensions: ExtensionRequest[]; submissions: Submission[] }>('/student/dashboard'),
+    request<{ profile: StudentProfile; enrollment: Enrollment; milestones: CapstoneMilestone[]; comments: CapstoneComment[]; progress_reports: ProgressReport[]; extensions: ExtensionRequest[]; submissions: Submission[] }>('/student/dashboard'),
   updateCapstone: (title: string, summary: string) =>
-    request<any>('/student/capstone', { method: 'PATCH', body: JSON.stringify({ title, summary }) }),
+    request<StudentProfile>('/student/capstone', { method: 'PATCH', body: JSON.stringify({ title, summary }) }),
   updateMilestone: (mid: string, body: { status?: string; feedback?: string }) =>
-    request<any>(`/student/milestones/${mid}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    request<CapstoneMilestone>(`/student/milestones/${mid}`, { method: 'PATCH', body: JSON.stringify(body) }),
   postComment: (message: string) =>
-    request<any>('/student/comments', { method: 'POST', body: JSON.stringify({ message }) }),
+    request<CapstoneComment>('/student/comments', { method: 'POST', body: JSON.stringify({ message }) }),
   submitProgressReport: (body: { period_start: string; period_end: string; accomplishments: string; challenges: string }) =>
     request<ProgressReport>('/student/progress-reports', { method: 'POST', body: JSON.stringify(body) }),
   submitExtension: (body: { extension_type: string; requested_deadline: string; reason: string }) =>
@@ -346,7 +438,7 @@ export const api = {
 
   // Admin — enrollments
   enrollments: (params?: { status?: string; tier?: string }) => {
-    const q = new URLSearchParams(params as any).toString();
+    const q = new URLSearchParams(params as Record<string, string>).toString();
     return request<Enrollment[]>(`/admin/enrollments${q ? `?${q}` : ''}`);
   },
   adminCreateEnrollment: (body: { full_name: string; email: string; phone?: string; location?: string; tier?: string; about?: string; notes?: string }) =>
@@ -354,7 +446,7 @@ export const api = {
   updateEnrollment: (id: string, body: Partial<Enrollment>) =>
     request<Enrollment>(`/admin/enrollments/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   generateInvite: (enrollmentId: string) =>
-    request<{ invitation: any; claim_url: string; emailed: boolean; email_error: string }>(`/admin/enrollments/${enrollmentId}/invite`, { method: 'POST' }),
+    request<{ invitation: OnboardingInvitation; claim_url: string; emailed: boolean; email_error: string }>(`/admin/enrollments/${enrollmentId}/invite`, { method: 'POST' }),
 
   // Admin — quotes
   quotes: () => request<QuoteRequest[]>('/admin/quotes'),
@@ -368,11 +460,11 @@ export const api = {
 
   // Admin — students (hub portal)
   listStudents: () => request<User[]>('/admin/students'),
-  getStudent: (id: string) => request<{ user: User; profile: any; milestones: any[]; comments: any[]; progress_reports: ProgressReport[]; extensions: ExtensionRequest[]; submissions: Submission[] }>(`/admin/students/${id}`),
+  getStudent: (id: string) => request<{ user: User; profile: StudentProfile; milestones: CapstoneMilestone[]; comments: CapstoneComment[]; progress_reports: ProgressReport[]; extensions: ExtensionRequest[]; submissions: Submission[] }>(`/admin/students/${id}`),
   adminPostComment: (studentId: string, message: string) =>
-    request<any>(`/admin/students/${studentId}/comments`, { method: 'POST', body: JSON.stringify({ message }) }),
-  adminUpdateMilestone: (studentId: string, mid: string, body: { status?: string; feedback?: string }) =>
-    request<any>(`/admin/students/${studentId}/milestones/${mid}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    request<CapstoneComment>(`/admin/students/${studentId}/comments`, { method: 'POST', body: JSON.stringify({ message }) }),
+  adminUpdateMilestone: (studentId: string, mid: string, body: { status?: CapstoneMilestone['status']; feedback?: string }) =>
+    request<CapstoneMilestone>(`/admin/students/${studentId}/milestones/${mid}`, { method: 'PATCH', body: JSON.stringify(body) }),
   adminRespondProgressReport: (id: string, body: { supervisor_feedback: string; status: string }) =>
     request<ProgressReport>(`/admin/progress-reports/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   adminRespondExtension: (id: string, body: { status: string; decision_note: string }) =>
@@ -381,19 +473,19 @@ export const api = {
     request<Submission>(`/admin/submissions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   // Admin — events
-  adminListEvents: () => request<any[]>('/admin/events'),
-  adminCreateEvent: (body: any) =>
-    request<any>('/admin/events', { method: 'POST', body: JSON.stringify(body) }),
-  adminUpdateEvent: (id: string, body: any) =>
-    request<any>(`/admin/events/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  adminListEvents: () => request<Event[]>('/admin/events'),
+  adminCreateEvent: (body: EventBody) =>
+    request<Event>('/admin/events', { method: 'POST', body: JSON.stringify(body) }),
+  adminUpdateEvent: (id: string, body: EventBody) =>
+    request<Event>(`/admin/events/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   adminDeleteEvent: (id: string) =>
-    request<any>(`/admin/events/${id}`, { method: 'DELETE' }),
+    request<MessageResponse>(`/admin/events/${id}`, { method: 'DELETE' }),
   adminListReservations: (eventId: string) =>
-    request<any[]>(`/admin/events/${eventId}/reservations`),
+    request<Reservation[]>(`/admin/events/${eventId}/reservations`),
   adminBroadcast: (eventId: string, subject: string, message: string) =>
-    request<any>(`/admin/events/${eventId}/broadcast`, { method: 'POST', body: JSON.stringify({ subject, message }) }),
+    request<BroadcastResult>(`/admin/events/${eventId}/broadcast`, { method: 'POST', body: JSON.stringify({ subject, message }) }),
   approveReservation: (rid: string) =>
-    request<any>(`/admin/reservations/${rid}/approve`, { method: 'PATCH' }),
+    request<Reservation>(`/admin/reservations/${rid}/approve`, { method: 'PATCH' }),
 
   // Gallery
   listPublicGallery: () => request<GalleryItem[]>('/gallery'),
@@ -403,7 +495,7 @@ export const api = {
   adminUpdateGalleryItem: (id: string, body: Partial<GalleryItem>) =>
     request<GalleryItem>(`/admin/gallery/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   adminDeleteGalleryItem: (id: string) =>
-    request<any>(`/admin/gallery/${id}`, { method: 'DELETE' }),
+    request<MessageResponse>(`/admin/gallery/${id}`, { method: 'DELETE' }),
   uploadGalleryImage: async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append('file', file);
@@ -416,7 +508,7 @@ export const api = {
     request<Product[]>('/products'),
   adminListProducts: () =>
     request<Product[]>('/admin/products'),
-  adminCreateProduct: (body: any) =>
+  adminCreateProduct: (body: ProductBody) =>
     request<Product>('/admin/products', { method: 'POST', body: JSON.stringify(body) }),
   // Uploads a product image and returns an absolute URL to store as image_url.
   // The backend returns a path relative to the API base; we resolve it against
@@ -427,10 +519,10 @@ export const api = {
     const { url } = await requestUpload<{ url: string }>('/admin/products/image', formData);
     return `${API_BASE_URL}${url}`;
   },
-  adminUpdateProduct: (id: string, body: any) =>
+  adminUpdateProduct: (id: string, body: ProductBody) =>
     request<Product>(`/admin/products/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   adminDeleteProduct: (id: string) =>
-    request<any>(`/admin/products/${id}`, { method: 'DELETE' }),
+    request<MessageResponse>(`/admin/products/${id}`, { method: 'DELETE' }),
 
   // Opportunities (B2B sales pipeline)
   adminListOpportunities: (stage?: string) =>
@@ -459,9 +551,9 @@ export const api = {
     request<{ items: Notification[]; unread: number }>(`/admin/notifications${unreadOnly ? '?unread=true' : ''}`),
   // PATCH, not POST: marking read is an update, and nobody creates inbox items.
   adminMarkNotificationRead: (id: string) =>
-    request<any>(`/admin/notifications/${id}/read`, { method: 'PATCH' }),
+    request<MessageResponse>(`/admin/notifications/${id}/read`, { method: 'PATCH' }),
   adminMarkAllNotificationsRead: () =>
-    request<any>('/admin/notifications/read-all', { method: 'PATCH' }),
+    request<MessageResponse>('/admin/notifications/read-all', { method: 'PATCH' }),
   adminNotificationPreference: () =>
     request<{ email_mode: EmailMode }>('/admin/notifications/preferences'),
   adminSetNotificationPreference: (email_mode: EmailMode) =>
@@ -474,7 +566,7 @@ export const api = {
   adminUpdateContract: (id: string, body: Partial<Contract> & { clear_renewal?: boolean }) =>
     request<Contract>(`/admin/contracts/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   adminDeleteContract: (id: string) =>
-    request<any>(`/admin/contracts/${id}`, { method: 'DELETE' }),
+    request<MessageResponse>(`/admin/contracts/${id}`, { method: 'DELETE' }),
   uploadContractFile: (id: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -493,13 +585,13 @@ export const api = {
   adminContractSignatures: (id: string) =>
     request<ContractSignature[]>(`/admin/contracts/${id}/signatures`),
   adminMySignature: () => request<{ image: string }>('/admin/contracts/my-signature'),
-  adminDeleteMySignature: () => request<any>('/admin/contracts/my-signature', { method: 'DELETE' }),
+  adminDeleteMySignature: () => request<MessageResponse>('/admin/contracts/my-signature', { method: 'DELETE' }),
   adminCreateOpportunity: (body: Partial<Opportunity>) =>
     request<Opportunity>('/admin/opportunities', { method: 'POST', body: JSON.stringify(body) }),
   adminUpdateOpportunity: (id: string, body: Partial<Opportunity>) =>
     request<Opportunity>(`/admin/opportunities/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   adminDeleteOpportunity: (id: string) =>
-    request<any>(`/admin/opportunities/${id}`, { method: 'DELETE' }),
+    request<MessageResponse>(`/admin/opportunities/${id}`, { method: 'DELETE' }),
 
   // Engagement log (deal activity timeline)
   adminListActivities: (opportunityId: string) =>
@@ -513,7 +605,7 @@ export const api = {
   adminCreatePayment: (opportunityId: string, body: { amount: number; method: string; reference?: string; paid_at?: string; note?: string }) =>
     request<Payment>(`/admin/opportunities/${opportunityId}/payments`, { method: 'POST', body: JSON.stringify(body) }),
   adminDeletePayment: (paymentId: string) =>
-    request<any>(`/admin/payments/${paymentId}`, { method: 'DELETE' }),
+    request<MessageResponse>(`/admin/payments/${paymentId}`, { method: 'DELETE' }),
 
   // Audit trail
   adminAuditLogs: (params?: { entity?: string; action?: string }) => {
@@ -528,7 +620,7 @@ export const api = {
   adminUpdateUser: (id: string, body: { is_active?: boolean; role?: string }) =>
     request<User>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   adminDeleteUser: (id: string) =>
-    request<any>(`/admin/users/${id}`, { method: 'DELETE' }),
+    request<MessageResponse>(`/admin/users/${id}`, { method: 'DELETE' }),
 
   // Admin — outbound email diagnostics
   adminEmailStatus: () => request<EmailStatus>('/admin/email/status'),
@@ -541,7 +633,7 @@ export const api = {
   adminUpdateRole: (id: string, body: { label?: string; description?: string; permissions?: Omit<CustomRolePermission, 'id'>[] }) =>
     request<CustomRole>(`/admin/roles/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   adminDeleteRole: (id: string) =>
-    request<any>(`/admin/roles/${id}`, { method: 'DELETE' }),
+    request<MessageResponse>(`/admin/roles/${id}`, { method: 'DELETE' }),
 
   // Approvals
   // `awaiting` asks the server which requests this caller may actually decide,

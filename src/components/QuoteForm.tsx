@@ -1,6 +1,6 @@
 import { FormEvent, useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { api } from '../lib/api';
+import { api, errorMessage } from '../lib/api';
 import type { Product } from '../types';
 
 interface QuoteFormProps {
@@ -48,8 +48,8 @@ export function QuoteForm({ preselectedService }: QuoteFormProps) {
         budget_range: '',
         message: ''
       });
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to submit quote request');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to submit quote request'));
     }
   }
 

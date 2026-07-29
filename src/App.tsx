@@ -40,7 +40,12 @@ export default function App() {
             redirects to the marketing site and the user never sees the form. */}
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/admin" element={<ProtectedRoute surface="admin"><AdminPage /></ProtectedRoute>} />
+        {/* The back office is one component per URL segment rather than one URL
+            for the whole thing, so a section can be linked and the back button
+            walks between them. Bare /admin keeps working for existing links and
+            bookmarks; it normalises to the canonical section URL. */}
+        <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
+        <Route path="/admin/:section" element={<ProtectedRoute surface="admin"><AdminPage /></ProtectedRoute>} />
         <Route path="/student" element={<ProtectedRoute surface="student"><StudentPage /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

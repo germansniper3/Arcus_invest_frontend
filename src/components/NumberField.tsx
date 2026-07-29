@@ -58,7 +58,7 @@ export function NumberField({ value, onChange, style, ...rest }: NumberFieldProp
       // appending to it — the other half of the "025" complaint.
       onFocus={(e) => e.target.select()}
       onBlur={() => setTyped(null)}
-      style={{ color: '#111512', background: '#f7f8f3', ...style }}
+      style={{ color: 'var(--ws-fg)', background: 'var(--ws-sunken)', ...style }}
       {...rest}
     />
   );
