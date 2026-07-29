@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { X, Printer } from 'lucide-react';
 import type { Opportunity, Payment, PurchaseOrder } from '../types';
 import { arcusImages } from '../lib/assets';
@@ -128,7 +129,18 @@ export default function DocumentView({ kind, opportunity, purchaseOrder, payment
     </div>
   );
 
-  return (
+  // Rendered into document.body rather than in place.
+  //
+  // This is what makes printing produce one page instead of three. The print
+  // stylesheet has to remove everything that is not the document, and the only
+  // property that removes a layout box is `display: none` — `visibility:
+  // hidden` keeps the box and its full height, so the whole workspace was still
+  // on the paper as blank pages. But `display: none` cannot be applied to an
+  // ancestor of something that must stay visible: unlike visibility, a
+  // descendant cannot override it. Portalling to body makes the overlay a
+  // sibling of the app root instead of a descendant, so the rule can hide
+  // `body > *:not(.doc-overlay)` outright and the document is all that is left.
+  return createPortal(
     <div className="doc-overlay">
       <div className="doc-toolbar doc-no-print">
         {kind !== 'receipt' && onToggleVat && (
@@ -303,6 +315,7 @@ export default function DocumentView({ kind, opportunity, purchaseOrder, payment
           </footer>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

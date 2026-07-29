@@ -707,8 +707,23 @@ textarea { min-height: 130px; resize: vertical; grid-column: 1 / -1; }
 .doc-page--receipt { width: 148mm; min-height: auto; padding: 16mm 14mm; }
 
 @media print {
-  body * { visibility: hidden !important; }
-  .doc-print-root, .doc-print-root * { visibility: visible !important; }
+  /* `display: none`, not `visibility: hidden`.
+
+     visibility keeps the layout box and all of its height — it hides the ink,
+     not the paper. The workspace behind the document was therefore still being
+     laid out at full height, and since .doc-overlay returns to `position:
+     static` below, the document landed *after* it: measured at 2,400px of
+     invisible chrome, the invoice began on page three with two blank pages in
+     front of it.
+
+     display removes the box entirely. It cannot be put on an ancestor of the
+     document — unlike visibility, a descendant cannot override it — which is
+     why DocumentView and CounterReceipt portal into document.body. That makes
+     .doc-overlay a sibling of the app root, so everything else at body level
+     can go, and what remains is exactly one document. */
+  body > *:not(.doc-overlay) { display: none !important; }
+  /* Margins belong to @page, not to the box. */
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; height: auto !important; }
   /* The insets belong to the screen, not the paper — a phone's notch must not
      become a margin on a client's invoice. */
   .doc-overlay { position: static; background: #fff; overflow: visible; padding: 0; }

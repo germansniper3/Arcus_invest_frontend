@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { X, Printer } from 'lucide-react';
 import { ARCUS_ISSUER, VAT_RATE } from '../../components/DocumentView';
 import type { CounterSale } from '../../types';
@@ -51,7 +52,10 @@ export function CounterReceipt({ sale, onClose }: { sale: CounterSale; onClose: 
     </div>
   );
 
-  return (
+  // Portalled to body for the same reason DocumentView is: the print rule can
+  // only drop the rest of the page with `display: none`, which cannot be
+  // applied to an ancestor of the thing that must survive.
+  return createPortal(
     <div className="doc-overlay">
       <div className="doc-toolbar doc-no-print">
         <button onClick={() => window.print()} className="primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', minHeight: '38px', padding: '0 16px' }}>
@@ -163,6 +167,7 @@ export function CounterReceipt({ sale, onClose }: { sale: CounterSale; onClose: 
           </footer>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
