@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, X, Send, PackageCheck, Ban, Truck } from 'lucide-react';
+import { Plus, X, Send, PackageCheck, Ban, Truck, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, isApprovalBlocked, errorMessage } from '../../lib/api';
 import { useCan } from '../../lib/permissions';
@@ -15,6 +15,7 @@ import { SectionAction } from '../../components/SectionAction';
 import { SectionMetrics } from '../../components/SectionMetrics';
 import { Badge, type Tone } from '../../components/Badge';
 import { Loadable } from '../../components/Loadable';
+import DocumentView from '../../components/DocumentView';
 import { useRefreshSignal } from '../../lib/refresh';
 
 /**
@@ -109,6 +110,9 @@ export function PurchasingSection({ active }: Props) {
 
   const [history, setHistory] = useState<PurchaseOrder | null>(null);
   const [receipts, setReceipts] = useState<GoodsReceipt[]>([]);
+
+  // The printable order — the fourth DocumentKind, not a component of its own.
+  const [printing, setPrinting] = useState<PurchaseOrder | null>(null);
 
   async function load() {
     setLoading(true);
@@ -410,6 +414,9 @@ export function PurchasingSection({ active }: Props) {
                       <div style={{ display: 'flex', gap: 'var(--space-1)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         <button className="btn-ghost" onClick={() => openHistory(po)} title="Deliveries and landed cost">
                           <Truck size={14} />
+                        </button>
+                        <button className="btn-ghost" onClick={() => setPrinting(po)} title="Print the order">
+                          <FileText size={14} />
                         </button>
                         {(po.status === 'draft' || po.status === 'rejected') && can('purchase_orders', 'update') && (
                           <button className="btn-ghost" onClick={() => openEdit(po)}>Edit</button>
@@ -796,6 +803,18 @@ export function PurchasingSection({ active }: Props) {
           </div>
         )}
       </Modal>
+
+      {/* The order as a printed document. applyVat is false and has no toggle:
+          what a supplier charges is on their invoice, and on an import the VAT
+          is assessed at the border — neither is ours to state here. */}
+      {printing && (
+        <DocumentView
+          kind="purchase_order"
+          purchaseOrder={printing}
+          applyVat={false}
+          onClose={() => setPrinting(null)}
+        />
+      )}
     </div>
   );
 }
