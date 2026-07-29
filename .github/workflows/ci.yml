@@ -9,12 +9,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       - name: Install
@@ -23,8 +23,11 @@ jobs:
       - name: Type-check
         run: npx tsc -b
 
+      # No --if-present. Lint is the only gate that catches no-unused-vars -
+      # tsc and vite build both pass code it rejects - so if the script ever
+      # goes missing the run must fail, not quietly succeed.
       - name: Lint
-        run: npm run lint --if-present
+        run: npm run lint
 
       - name: Build
         run: npm run build
