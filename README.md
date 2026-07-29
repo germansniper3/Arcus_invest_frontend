@@ -37,8 +37,26 @@ npx tsc --noEmit && npm run build
 Radix primitives are used for behaviour only (dialogs: focus trapping, escape handling, portals) and
 are styled by the existing CSS.
 
-The palette, if you are adding UI: `#111512` text, `#5a625d` labels, `#8a908a` muted, `#f7f8f3`
-input background, `#dfe1da` borders, `#5f7c29` accent, `#a00` danger.
+**Use the design tokens, not literals.** The palette above now exists as custom properties — `--ws-fg`,
+`--ws-fg-muted`, `--ws-panel`, `--ws-canvas`, `--ws-border`, `--ws-border-strong`, `--accent`, the
+`--fs-*` type scale and the `--space-*` scale. New code starts converted. The only files still on
+literals are `PublicSite`, `GreenEngineeringPage`, `DocumentView` and `CounterReceipt` — the dark
+marketing site and the printed artefacts, both deliberately excluded, the latter because their
+palette is built to survive a monochrome printer.
+
+Two shared classes worth knowing before you improvise one inline:
+
+- **`.btn-ghost`** — the workspace secondary button. `.secondary` is the *marketing site's* (white
+  text on a translucent white fill) and is invisible on a white modal card, which is why call sites
+  used to hand-roll one and Cancel ended up borderless with a mismatched radius. Matches `.primary`'s
+  box so the two sit level in a footer row.
+- **`.scroll-x`** — a horizontally scrollable region, for tables carrying a `min-width`. Adds a
+  right-edge shadow drawn with `background-attachment: local`, so it appears only at an edge that can
+  really scroll, with no scroll listener. Also sets `overscroll-behavior-x: contain`, without which a
+  horizontal drag chains to the page and loses to the vertical scroll under a thumb.
+
+For `Badge`, use its `Tone` — there are ten, and zero literal `{bg,fg}` maps remain. Do not add one,
+including as a ternary at the call site.
 
 ---
 
@@ -46,14 +64,33 @@ input background, `#dfe1da` borders, `#5f7c29` accent, `#a00` danger.
 
 ```
 src/
-  components/   Modal, NumberField, NotificationBell, SessionExpiredDialog, SignContractModal
-  lib/          api.ts (client), auth.tsx (session context), assets.ts
+  components/   Modal, Badge, NumberField, Loadable, SectionAction, SectionMetrics,
+                DocumentView, NotificationBell, SessionExpiredDialog, SignContractModal
+  features/     one folder per workspace section — pipeline, contracts, receivables,
+                payables, purchasing, counter, catalogue, accounts, approvals, users,
+                students, events, intake, gallery, audit, overview
+  lib/          api.ts (client + errorMessage), auth.tsx, permissions.ts (useCan),
+                refresh.tsx (useRefreshSignal), adminSections.ts, money.ts, assets.ts
   pages/        PublicSite, Login, ForgotPassword, ResetPassword, ClaimInvitation, Admin, Student
-  types/        shared API types, kept in step with the Go models
+  types/        shared API types, typed against the Go handlers
 ```
 
-`AdminPage.tsx` holds every admin section in one component; sections are local state rather than
-routes, so the admin area is a single URL.
+`AdminPage.tsx` is the shell: the rail, the header and the section slots. Each section is **its own
+URL segment** (`/admin/pipeline`, `/admin/purchasing`), so a section can be linked and the back
+button walks between them; bare `/admin` normalises to the canonical section URL.
+
+Sections stay **mounted** and only their body is conditional on `active`. Radix restores focus on the
+open→closed transition, and an unmounted dialog never emits one — the keyboard user gets dropped at
+`<body>`. It is also why the section transition is driven by an alternating attribute rather than a
+`key`: re-keying the wrapper would remount every section on each tab change.
+
+Adding a section is a checklist, and one step fails the build on purpose. `ALL_RESOURCES` is derived
+from a `Record<PermissionResource, true>` in `lib/adminSections.ts`, because the hand-maintained array
+had silently drifted to 17 of 19 members and two resources could not be granted at all. So adding to
+the `PermissionResource` union **fails typecheck until you give it a row** — that is intended; do not
+widen the type to escape it. Then: `ADMIN_TABS`, `TAB_RESOURCE`, the rail entry and header title in
+`AdminPage.tsx`, the render **inside** the `.section-swap` wrapper (outside it there is no enter
+animation), `useRefreshSignal()` in the section, and the server-side permission.
 
 ---
 
